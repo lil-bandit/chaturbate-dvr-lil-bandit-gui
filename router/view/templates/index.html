@@ -351,6 +351,9 @@
                         if (box) {
                             // Toggle the class to collapse/expand the box, - using .toggle() is buggy with dynamic content
                             box.classList.contains('js-is-collapsed') ? box.classList.remove('js-is-collapsed') : box.classList.add('js-is-collapsed')
+                            console.log('Toggled box:', box)
+                        }else {
+                            console.error('No parent .ts-box found for the clicked element.')
                         }
                         event.stopPropagation()
                     });
