@@ -346,7 +346,7 @@
                 document.querySelectorAll('.js-username-title').forEach(el => {
                     // Remove any previous handler to avoid duplicates
                     el.onclick = null;
-                    el.addEventListener('click', function(event) {
+                    el.addEventListener('mousedown', function(event) {
                         const box = el.closest('.ts-box')
                         if (box) {
                             // Toggle the class to collapse/expand the box, - using .toggle() is buggy with dynamic content
