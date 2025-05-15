@@ -3,6 +3,7 @@ package router
 import (
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -17,11 +18,34 @@ type IndexData struct {
 	Channels []*entity.ChannelInfo
 }
 
+// sortChannels sorts the channels based on custom criteria.
+func sortChannels(channels []*entity.ChannelInfo) {
+	sort.Slice(channels, func(i, j int) bool {
+		rank := func(ch *entity.ChannelInfo) int {
+			switch {
+			case !ch.IsPaused && ch.IsOnline:
+				return 0 // Highest priority
+			case ch.IsPaused:
+				return 1 // Next priority
+			default:
+				return 2 // The rest
+			}
+		}
+		ri, rj := rank(channels[i]), rank(channels[j])
+		if ri != rj {
+			return ri < rj
+		}
+		return channels[i].Username < channels[j].Username
+	})
+}
+
 // Index renders the index page with channel information.
 func Index(c *gin.Context) {
+	channels := server.Manager.ChannelInfo()
+	sortChannels(channels)
 	c.HTML(200, "index.html", &IndexData{
 		Config:   server.Config,
-		Channels: server.Manager.ChannelInfo(),
+		Channels: channels,
 	})
 }
 

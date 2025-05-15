@@ -2,7 +2,7 @@
 <html lang="en" class="is-secondary">
     <head>
         <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="viewport" content="width=width=device-width, initial-scale=1.0" />
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tocas/5.0.1/tocas.min.css" />
         <script src="https://cdnjs.cloudflare.com/ajax/libs/tocas/5.0.1/tocas.min.js"></script>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -15,6 +15,27 @@
         <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png">
         <link rel="manifest" href="/static/site.webmanifest">
         <title>Chaturbate DVR</title>
+
+        <style>
+            .js-is-collapsed.ts-box.is-horizontal > div > :not(:first-child) { display: none; }
+            .js-is-collapsed.ts-box.is-horizontal > div { width: 100% !important;  }
+            .js-is-collapsed.ts-box .ts-input { display: none !important; }
+            .ts-wrap.is-vertical { margin-top:140px !important; /*oops*/ }
+            .ts-container > .ts-grid.is-bottom-aligned {
+                padding:50px; position: fixed; top: 0px; width: 100%; background: #181818;
+                padding-bottom: 30px; left: 0px; z-index:995; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.45);
+                border-bottom: 3px solid #212121;
+            }
+
+
+            .js-username-title {
+                cursor: pointer;
+                user-select: none;
+                -webkit-user-select: none;
+                -ms-user-select: none;   
+            }
+          
+        </style>
     </head>
 
     <body hx-ext="sse">
@@ -61,7 +82,7 @@
             <!-- Channels -->
             <div class="ts-wrap is-vertical has-top-spaced-large" sse-connect="/updates?stream=updates">
                 {{ range .Channels }}
-                <div class="ts-box is-horizontal">
+                <div class="ts-box is-horizontal js-is-collapsed">
                      <!-- Info Section -->
                      <div sse-swap="{{ .Username }}-info" class="ts-content is-padded has-break-all" style="width: 400px; line-height: 1.45; padding-right: 0">
                         {{ template "channel_info" . }}
@@ -179,7 +200,7 @@
                             <div class="content">
                                 <div class="ts-input is-start-labeled">
                                     <div class="label">{{ .Config.Domain }}</div>
-                                    <input type="text" name="username" autofocus required />
+                                    <input type="text" id="username-input" name="username" autofocus required />
                                 </div>
                                 <div class="ts-text is-description has-top-spaced-small">Use commas to separate multiple channel names, e.g. "channel1, channel2, channel3".</div>
                             </div>
@@ -298,6 +319,42 @@
             document.body.querySelectorAll("textarea").forEach((textarea) => {
                 textarea.scrollTop = textarea.scrollHeight
             })
+
+            //
+            document.getElementById('username-input').addEventListener('change', function (e) {
+                let value = e.target.value.trim()
+                // Only try to extract channel ID if it looks like a chaturbate URL
+                if (value.includes('chaturbate.')) {
+                    let match = value.match(/^(?:https?:\/\/)?(?:[a-zA-Z0-9-]+\.)?chaturbate\.[a-z.]+\/([^\/\s?#]+)/i);
+                    if (match) {
+                        e.target.value = match[1] // Replace input with just the username
+                    }
+                }
+                // Otherwise, leave as-is (for comma-separated IDs)
+            });
+
+            function attachChannelTitleHandlers() {
+                document.querySelectorAll('.js-username-title').forEach(el => {
+                    // Remove any previous handler to avoid duplicates
+                    el.onclick = null;
+                    el.addEventListener('click', function(event) {
+                        const box = el.closest('.ts-box')
+                        if (box) {
+                            // Toggle the class to collapse/expand the box, - using .toggle() is buggy with dynamic content
+                            box.classList.contains('js-is-collapsed') ? box.classList.remove('js-is-collapsed') : box.classList.add('js-is-collapsed')
+                        }
+                        event.stopPropagation()
+                    });
+                });
+            }
+
+            // Attach on initial load
+            attachChannelTitleHandlers()
+
+            // Attach after HTMX/SSE swaps content
+            document.body.addEventListener('htmx:afterSwap', function() {
+                attachChannelTitleHandlers()
+            });
         </script>
     </body>
 </html>
