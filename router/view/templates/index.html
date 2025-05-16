@@ -312,9 +312,10 @@
         <!-- / Create Dialog -->
 
         <script>
-            // before content was swapped by HTMX
+ 
             document.body.addEventListener("htmx:sseBeforeMessage", function (e) {
                 // stop it if "auto-update" was unchecked
+
                 if (!e.detail.elt.closest(".ts-box").querySelector("[type=checkbox]").checked) {
                     e.preventDefault()
                     return
@@ -329,44 +330,58 @@
                 textarea.scrollTop = textarea.scrollHeight
             })
 
-            //
+          
             document.getElementById('username-input').addEventListener('change', function (e) {
                 let value = e.target.value.trim()
                 // Only try to extract channel ID if it looks like a chaturbate URL
                 if (value.includes('chaturbate.')) {
                     let match = value.match(/^(?:https?:\/\/)?(?:[a-zA-Z0-9-]+\.)?chaturbate\.[a-z.]+\/([^\/\s?#]+)/i);
                     if (match) {
-                        e.target.value = match[1] // Replace input with just the username
+                        // Replace input with just the username
+                        e.target.value = match[1] 
                     }
                 }
                 // Otherwise, leave as-is (for comma-separated IDs)
             });
 
-            function attachChannelTitleHandlers() {
-                document.querySelectorAll('.js-username-title').forEach(el => {
-                    // Remove any previous handler to avoid duplicates
-                    el.onclick = null;
-                    el.addEventListener('mousedown', function(event) {
-                        const box = el.closest('.ts-box')
-                        if (box) {
-                            // Toggle the class to collapse/expand the box, - using .toggle() is buggy with dynamic content
-                            box.classList.contains('js-is-collapsed') ? box.classList.remove('js-is-collapsed') : box.classList.add('js-is-collapsed')
-                            console.log('Toggled box:', box)
-                        }else {
-                            console.error('No parent .ts-box found for the clicked element.')
+
+            var CollapsibleItems = (function(){
+
+                function onClickCollapsibleEvent(event) {
+                    const box = event.target.closest('.ts-box');
+                    if (box) {
+                        if (box.classList.contains('js-is-collapsed')) {
+                            box.classList.remove('js-is-collapsed')
+                        } else {
+                            box.classList.add('js-is-collapsed')
                         }
-                        event.stopPropagation()
-                    });
+                    } else {
+                        console.error('No parent .ts-box found for the clicked element.')
+                    }
+                    event.stopPropagation()
+                }
+
+
+                function ensureClickHandlers(el) {
+                    el.removeEventListener('click', onClickCollapsibleEvent)
+                    el.addEventListener('click', onClickCollapsibleEvent)
+                }
+                
+                document.querySelectorAll('.js-username-title').forEach(el => {
+                    ensureClickHandlers(el)
                 });
-            }
+                
+                // Attach after HTMX/SSE swaps content
+                document.body.addEventListener('htmx:afterSwap', function(e) {
+                    let sswe_id = e.detail.elt.getAttribute('sse-swap')
+                    if (sswe_id && sswe_id.endsWith("-info") ) {
+                        ensureClickHandlers( e.detail.elt )
+                    }
+                })
 
-            // Attach on initial load
-            attachChannelTitleHandlers()
-
-            // Attach after HTMX/SSE swaps content
-            document.body.addEventListener('htmx:afterSwap', function() {
-                attachChannelTitleHandlers()
-            });
+            })()
+            
+            
         </script>
     </body>
 </html>
