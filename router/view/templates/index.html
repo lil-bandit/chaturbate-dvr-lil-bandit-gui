@@ -363,6 +363,7 @@
 
 
                 function ensureClickHandlers(el) {
+                    console.log('Adding click handler to:', el)
                     el.removeEventListener('click', onClickCollapsibleEvent)
                     el.addEventListener('click', onClickCollapsibleEvent)
                 }
@@ -370,7 +371,7 @@
                 document.querySelectorAll('.js-username-title').forEach(el => {
                     ensureClickHandlers(el)
                 });
-                
+                 
                 // Attach after HTMX/SSE swaps content
                 document.body.addEventListener('htmx:afterSwap', function(e) {
                     let sswe_id = e.detail.elt.getAttribute('sse-swap')
@@ -378,7 +379,7 @@
                         ensureClickHandlers( e.detail.elt )
                     }
                 })
-
+                /**/
             })()
             
             
