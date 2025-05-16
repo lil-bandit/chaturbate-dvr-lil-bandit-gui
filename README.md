@@ -6,7 +6,9 @@ Features
 - Items are sorted by name, grouped by status ( atm. requires manual refresh )
 - Input takes whole CB url, will filter the ID automatically.
 
-Image on Docker Hub: lilbandit/chaturbate-dvr
+
+
+Docker Image on Docker Hub: lilbandit/chaturbate-dvr
 
 Run from commandline:
 docker run -d --name lilbandit-cb-dvr -p 8080:8080 -v C:\my_recordings:/usr/src/app/videos -v C:\my_config:/usr/src/app/conf lilbandit/chaturbate-dvr
