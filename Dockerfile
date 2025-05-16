@@ -9,6 +9,5 @@ WORKDIR /usr/src/app
 
 COPY --from=builder /workspace/chaturbate-dvr /chaturbate-dvr
 
-EXPOSE 8080
 
 ENTRYPOINT ["/chaturbate-dvr"]
