@@ -1,7 +1,8 @@
 {{ define "channel_info" }}
 
 <!-- Header -->
-<div class="ts-grid is-middle-aligned">
+<div class="ts-grid is-middle-aligned channel-header">
+   <div class="ts-image is-circular .channel-thumbnail" style="background-image: url('./channel_thumbs/{{ .Username }}.png');"></div> 
     <div class="column is-fluid">
         <div class="ts-header js-username-title">{{ .Username }}</div>
     </div>

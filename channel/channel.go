@@ -68,6 +68,7 @@ func (ch *Channel) Publisher() {
 // This is used to cancel the context when the channel is stopped or paused.
 func (ch *Channel) WithCancel(ctx context.Context) (context.Context, context.CancelFunc) {
 	ctx, ch.CancelFunc = context.WithCancel(ctx)
+	log.Printf(" INFO [%s] %s", ch.Config.Username, "STOP")
 	return ctx, ch.CancelFunc
 }
 

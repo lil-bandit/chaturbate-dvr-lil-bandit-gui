@@ -32,6 +32,14 @@
                 -webkit-user-select: none;
                 -ms-user-select: none;   
             }
+            .channel-thumbnail  {
+                background-image: url('/channel_thumbs/default.png');
+                background-size: cover;
+                background-position: center;
+                width: 40px;
+                height: 40px;
+            }
+
           
         </style>
     </head>
@@ -348,24 +356,29 @@
             var CollapsibleItems = (function(){
 
                 function onClickCollapsibleEvent(event) {
+                    let collapseClass = "js-is-collapsed"
+                    console.log('Clicked on:', event.target, event.target.className)
+                   
                     const box = event.target.closest('.ts-box');
                     if (box) {
-                        if (box.classList.contains('js-is-collapsed')) {
-                            box.classList.remove('js-is-collapsed')
+                        if (box.classList.contains(collapseClass)) {
+                            console.log("User Collapsed")
+                            box.classList.remove(collapseClass)
                         } else {
-                            box.classList.add('js-is-collapsed')
+                            box.classList.add(collapseClass)
                         }
                     } else {
                         console.error('No parent .ts-box found for the clicked element.')
                     }
+               
                     event.stopPropagation()
                 }
 
 
-                function ensureClickHandlers(el) {
+                function ensureClickHandlers( el ) {
                     console.log('Adding click handler to:', el)
                     el.removeEventListener('click', onClickCollapsibleEvent)
-                    el.addEventListener('click', onClickCollapsibleEvent)
+                    el.addEventListener('click', onClickCollapsibleEvent )
                 }
                 
                 document.querySelectorAll('.js-username-title').forEach(el => {
@@ -376,9 +389,11 @@
                 document.body.addEventListener('htmx:afterSwap', function(e) {
                     let sswe_id = e.detail.elt.getAttribute('sse-swap')
                     if (sswe_id && sswe_id.endsWith("-info") ) {
-                        ensureClickHandlers( e.detail.elt )
+                        e.detail.elt.querySelectorAll('.js-username-title').forEach(el => {
+                            ensureClickHandlers(el);
+                        });
                     }
-                })
+                });
                 /**/
             })()
             
