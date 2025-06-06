@@ -3,7 +3,7 @@ Fork of excellent work by TeaCat+
 
 Changes
 =============================
-- More compact list view (Click to expand/collaps)
+- More compact list view (Click to expand/collapse)
 - Added thumbnail support ( Put you own JPGs in <config_dir>/channel-images/<channel_name>.jpg <--  )
 - List is automatically sorted by name and grouped by <i>status</i>
 - Added Maximum Connections option
