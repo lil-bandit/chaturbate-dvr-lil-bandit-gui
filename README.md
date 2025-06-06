@@ -1,4 +1,6 @@
-Fork of excellent work by TeaCat+
+This is a fork of excellent work by TeaCat+ 
+
+<br>Read general how to's here:
 <br>https://github.com/teacat/chaturbate-dvr/tree/master/chaturbate
 
 Changes
@@ -73,3 +75,9 @@ C:\temp\dvr_config
 </pre>
 
 After editing and running the BATfile, you should be able to go to http://localhost:8080 
+---------------------------------------------
+<br>
+How to use Chaturbate-DVR
+=============================
+Read more details on how to use the program here:<br>
+https://github.com/teacat/chaturbate-dvr/tree/master/chaturbate
