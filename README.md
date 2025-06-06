@@ -22,7 +22,11 @@ Changes
 
 <br>
 
-Note: Nothing is changed in regards to CloudFlare blocks.
+<b>Note regarding Maximum Connections limit:</b> 
+1. If you use the GUI to set a limit that is lower than current amount of active downloads,
+   then the active downloads will <i>reamain</i> active. You can pause / resume the ones you want to <i>queue</i>.
+2. When "replacing" active downloads with higher priority ones, it sometimes takes one "cycle" to reflect the changes ( 1 minute, default )
+
 
 
 ---------------------------------------------
@@ -76,3 +80,7 @@ C:\temp\dvr_config
 
 After editing and running the BATfile, you should be able to go to http://localhost:8080 
 <br>
+<br>
+
+
+![image](https://github.com/user-attachments/assets/84c185cf-3c70-4493-89bb-1ca7fdcce3fc)
