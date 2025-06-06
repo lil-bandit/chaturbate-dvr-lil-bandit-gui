@@ -55,6 +55,7 @@ func FetchStream(ctx context.Context, client *internal.Req, username string) (*S
 // ParseStream extracts the HLS source URL from the given page body.
 func ParseStream(body string) (*Stream, error) {
 	matches := roomDossierRegexp.FindStringSubmatch(body)
+	//fmt.Printf("roomDossierRegexp matches: %#v\n", matches)
 	if len(matches) == 0 {
 		return nil, errors.New("room dossier not found")
 	}
@@ -64,11 +65,16 @@ func ParseStream(body string) (*Stream, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode unicode: %w", err)
 	}
-
+	var allFields map[string]interface{}
+	if err := json.Unmarshal([]byte(sourceData), &allFields); err != nil {
+		return nil, fmt.Errorf("failed to parse JSON: %w", err)
+	}
+	//fmt.Printf("All fields in sourceData: %#v\n", allFields)
 	// Unmarshal JSON to extract HLS source URL
 	var room struct {
 		HLSSource string `json:"hls_source"`
 	}
+
 	if err := json.Unmarshal([]byte(sourceData), &room); err != nil {
 		return nil, fmt.Errorf("failed to parse JSON: %w", err)
 	}

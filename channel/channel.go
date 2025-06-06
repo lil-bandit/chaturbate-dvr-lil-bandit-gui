@@ -18,16 +18,19 @@ type Channel struct {
 	LogCh      chan string
 	UpdateCh   chan bool
 
-	IsOnline   bool
-	StreamedAt int64
-	Duration   float64 // Seconds
-	Filesize   int     // Bytes
-	Sequence   int
+	IsOnline          bool
+	IsDownPrioritized bool
+	StreamedAt        int64
+	Duration          float64 // Seconds
+	Filesize          int     // Bytes
+	Sequence          int
 
 	Logs []string
 
 	File   *os.File
 	Config *entity.ChannelConfig
+
+	//PublishFunc func(event string, data *entity.ChannelInfo)
 }
 
 // New creates a new channel instance with the given manager and configuration.
@@ -95,19 +98,43 @@ func (ch *Channel) ExportInfo() *entity.ChannelInfo {
 		streamedAt = time.Unix(ch.StreamedAt, 0).Format("2006-01-02 15:04 AM")
 	}
 	return &entity.ChannelInfo{
-		IsOnline:     ch.IsOnline,
-		IsPaused:     ch.Config.IsPaused,
-		Username:     ch.Config.Username,
-		MaxDuration:  internal.FormatDuration(float64(ch.Config.MaxDuration * 60)), // MaxDuration from config is in minutes
-		MaxFilesize:  internal.FormatFilesize(ch.Config.MaxFilesize * 1024 * 1024), // MaxFilesize from config is in MB
-		StreamedAt:   streamedAt,
-		CreatedAt:    ch.Config.CreatedAt,
-		Duration:     internal.FormatDuration(ch.Duration),
-		Filesize:     internal.FormatFilesize(ch.Filesize),
-		Filename:     filename,
-		Logs:         ch.Logs,
-		GlobalConfig: server.Config,
+		IsOnline:          ch.IsOnline,
+		IsPaused:          ch.Config.IsPaused,
+		IsDownPrioritized: ch.IsDownPrioritized,
+		Username:          ch.Config.Username,
+		MaxDuration:       internal.FormatDuration(float64(ch.Config.MaxDuration * 60)), // MaxDuration from config is in minutes
+		MaxFilesize:       internal.FormatFilesize(ch.Config.MaxFilesize * 1024 * 1024), // MaxFilesize from config is in MB
+		StreamedAt:        streamedAt,
+		CreatedAt:         ch.Config.CreatedAt,
+		Duration:          internal.FormatDuration(ch.Duration),
+		Filesize:          internal.FormatFilesize(ch.Filesize),
+		Priority:          ch.Config.Priority,
+		Filename:          filename,
+		Logs:              ch.Logs,
+		GlobalConfig:      server.Config,
+		Framerate:         ch.Config.Framerate,
+		Resolution:        ch.Config.Resolution,
+		Pattern:           ch.Config.Pattern,
 	}
+}
+
+// Recycle pauses the channel and cancels the context.
+// This is called when a channel with higher priority is online, and MaxConnections is reached.
+
+func (ch *Channel) DownPrioritize() {
+	// Stop the monitoring loop <-- Not sure this is the best
+	ch.CancelFunc()
+
+	ch.IsDownPrioritized = true
+	ch.Sequence = 0
+	ch.IsOnline = false
+
+	ch.Update()
+	ch.Info("------------> Channel Down prioritized")
+
+	<-time.After(1000 * time.Millisecond)
+	ch.Monitor()
+
 }
 
 // Pause pauses the channel and cancels the context.

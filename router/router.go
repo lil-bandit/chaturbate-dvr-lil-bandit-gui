@@ -47,6 +47,7 @@ func SetupStatic(r *gin.Engine) {
 		log.Fatalf("failed to initialize static files: %v", err)
 	}
 	r.StaticFS("/static", fs)
+	r.Static("/channel-images", "./conf/channel-images")
 }
 
 // setupViews registers HTML templates and view handlers.
@@ -58,7 +59,8 @@ func SetupViews(r *gin.Engine) {
 	r.POST("/stop_channel/:username", StopChannel)
 	r.POST("/pause_channel/:username", PauseChannel)
 	r.POST("/resume_channel/:username", ResumeChannel)
-
+	r.GET("/api/channel/:username", GetChannelJSON)
+	r.GET("/api/channels", GetAllChannelsJSON)
 }
 
 // LoadHTMLFromEmbedFS loads specific HTML templates from an embedded filesystem and registers them with Gin.

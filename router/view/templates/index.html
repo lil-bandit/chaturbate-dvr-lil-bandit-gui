@@ -8,8 +8,10 @@
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
         <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet" />
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
         <script src="/static/scripts/htmx.min.js" crossorigin="anonymous"></script>
         <script src="/static/scripts/sse.min.js" crossorigin="anonymous"></script>
+        <script src="/static/scripts/chaturbate-dvr.js" crossorigin="anonymous"></script>
         <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
         <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png">
         <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png">
@@ -17,30 +19,83 @@
         <title>Chaturbate DVR</title>
 
         <style>
+            /* Hide everything but the title (username)*/
+            .js-is-collapsed.ts-box.is-horizontal {
+                align-items: center;
+            }
+            
+            
             .js-is-collapsed.ts-box.is-horizontal > div > :not(:first-child) { 
                 display: none;
             }
+            
             .js-is-collapsed.ts-box.is-horizontal > div {
                  width: 100% !important; 
             }
+            
             .js-is-collapsed.ts-box .ts-input { 
                 display: none !important; 
             }
+            
             .js-username-title {
                 cursor: pointer;
                 user-select: none;
                 -webkit-user-select: none;
                 -ms-user-select: none;   
             }
-            .channel-thumbnail  {
-                background-image: url('/channel_thumbs/default.png');
+
+            .js-is-collapsed .ts-content.is-padded {
+                padding: 1em;
+            }            
+
+            .channel-thumbnail {
+                background-image: url('./conf/channel-images/default.png');
                 background-size: cover;
                 background-position: center;
-                width: 40px;
-                height: 40px;
+                width: 50px;
+                height: 50px;
+                border-radius: 50px;
+                margin-left: .5em;
             }
 
-          
+            .ts-box.is-horizontal .column .ts-badge {
+                padding: .7em .7em;
+                padding-left: .8em;
+                min-width: 8.8em;
+                text-align: center;
+                letter-spacing: .1em;
+                cursor: pointer;
+                user-select: none;
+                -ms-user-select: none; 
+                -webkit-user-select: none;
+                
+            }
+
+             
+            .ts-box.is-horizontal .column .ts-badge:hover {
+                border: 1px solid rgb(211, 211, 211);
+                box-shadow: 0 0 20px 0px rgba(255,255,255,.2);
+            } 
+            
+            /* Left align channel buttons in expanded view */ 
+            .ts-grid.is-3-columns.has-top-spaced-large .column{
+                flex: none;
+            }
+            
+            [sse-swap] .ts-divider.has-top-spaced {
+                margin-top: 4.5em !important;
+            }
+
+            .channel-header {
+                position: absolute;
+                width: calc(100% - 3em);
+                margin-top: .2em !important;
+            }
+            .js-is-collapsed .channel-header {
+                position: relative;
+                width: 100%;
+                margin-top: 0 !important;
+            }
         </style>
     </head>
 
@@ -99,13 +154,13 @@
                         {{ range .Channels }}
                         <div class="ts-box is-horizontal js-is-collapsed">
                             <!-- Info Section -->
-                            <div sse-swap="{{ .Username }}-info" class="ts-content is-padded has-break-all" style="width: 400px; line-height: 1.45; padding-right: 0">
+                            <div sse-swap="{{ .Username }}-info" class="ts-content has-break-all" style="width: 400px; line-height: 1.45; padding-right: 0">
                                 {{ template "channel_info" . }}
                             </div>
                             <!-- / Info Section -->
 
                             <!-- Log Section -->
-                            <div class="ts-content is-padded" style="flex: 1; gap: 0.8rem; display: flex; flex-direction: column">
+                            <div class="ts-content is-padded" style="flex: 1;gap: 0.8rem; display: flex; flex-direction: column; margin-top: 3.8rem;">
                                 <div class="ts-input" style="flex: 1">
                                     <textarea class="has-full-height" readonly sse-swap="{{ .Username }}-log" style="scrollbar-width: thin">{{ range .Logs }}{{ . }}&NewLine;{{ end }}</textarea>
                                 </div>
@@ -128,7 +183,7 @@
         </div>
 
         <!-- Settings Dialog -->
-        <dialog id="settings-dialog" class="ts-modal" style="--width: 680px">
+        <dialog id="settings-dialog" class="ts-modal" style="--width: 700px">
             <div class="content">
                 <form action="/update_config" method="POST">
                     <div class="ts-content is-horizontally-padded is-secondary">
@@ -164,15 +219,37 @@
                                 <div class="ts-input">
                                     <textarea name="user_agent" rows="5">{{ .Config.UserAgent }}</textarea>
                                 </div>
-                                <div class="ts-text is-description has-top-spaced-small">User-Agent can be found using tools like <a class="ts-text is-link" href="https://www.whatismybrowser.com/detect/what-is-my-user-agent/" target="_blank">WhatIsMyBrowser</a>.</div>
+                                <div class="ts-text is-description has-top-spaced-small">User-Agent can be found using tools like <a class="ts-text is-link" href="https://www.whatismybrowser.com/detect/what-is-my-user-agent/" target="_blank">WhatIsMyBrowser</a>.<br>Insert <i>this</i> browsers User-Agent <a class="ts-text is-link" href="#" onclick="cbdvr.insertUserAgent()">Click here</a></div>
                             </div>
                         </div>
                         <!-- / User Agent -->
                     </div>
 
-                    <div class="ts-divider"></div>
 
-                    <div class="ts-content is-secondary is-horizontally-padded">
+                    <!-- Priority Options -->
+                    <div class="ts-control is-wide has-top-spaced">
+                        <div class="label">Max. Connections</div>
+                        <div class="content">
+                            <div class="ts-content is-padded is-secondary">
+                                <div class="ts-grid is-relaxed is-2-columns">
+                                    <div class="column">
+                                        <!--<div class="ts-text is-bold">MaxConnections</div>-->
+                                        <div class="ts-input is-end-labeled has-top-spaced-small">
+                                            <input type="number" name="max_connections" value="{{ .Config.MaxConnections }}" />
+                                            <span class="label">Connections</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="ts-text is-description has-top-spaced">This will limit the amount of simultaneous recordings. The recordings will be queued after <i>priority</i> if maximum has been reached</div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- / Priority Options --> 
+
+
+                    <div class="ts-divider has-top-spaced"></div>
+
+                    <div class="ts-content is-secondary is-horizontally-padded ">
                         <div class="ts-grid is-middle-aligned">
                             <div class="column is-fluid">
                                 <div class="ts-text is-description">
@@ -197,6 +274,7 @@
         <dialog id="create-dialog" class="ts-modal" style="--width: 680px">
             <div class="content">
                 <form action="/create_channel" method="POST">
+                    <input type="hidden" id="edit-flag" name="edit" value="false" />
                     <div class="ts-content is-horizontally-padded is-secondary">
                         <div class="ts-grid">
                             <div class="column is-fluid">
@@ -304,6 +382,27 @@
                             </div>
                         </div>
                         <!-- / Splitting Options -->
+
+
+                        <!-- Priority Options -->
+                        <div class="ts-control is-wide has-top-spaced">
+                            <div class="label">Set priority</div>
+                            <div class="content">
+                                <div class="ts-content is-padded is-secondary">
+                                    <div class="ts-grid is-relaxed is-2-columns">
+                                        <div class="column">
+                                            <div class="ts-text is-bold">Priority</div>
+                                            <div class="ts-input is-end-labeled has-top-spaced-small">
+                                                <input type="number" name="priority" value="{{ .Config.Priority }}" />
+                                                <span class="label">Level</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="ts-text is-description has-top-spaced">Recordings will be prioritized when using using "Max Connections"</div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- / Priority Options -->                        
                     </div>
 
                     <div class="ts-divider"></div>
@@ -321,83 +420,8 @@
 
         <script>
  
-            document.body.addEventListener("htmx:sseBeforeMessage", function (e) {
-                // stop it if "auto-update" was unchecked
-
-                if (!e.detail.elt.closest(".ts-box").querySelector("[type=checkbox]").checked) {
-                    e.preventDefault()
-                    return
-                }
-                // else scroll the textarea to bottom with async trick
-                setTimeout(() => {
-                    let textarea = e.detail.elt.closest(".ts-box").querySelector("textarea")
-                    textarea.scrollTop = textarea.scrollHeight
-                }, 0)
-            })
-            document.body.querySelectorAll("textarea").forEach((textarea) => {
-                textarea.scrollTop = textarea.scrollHeight
-            })
-
-          
-            document.getElementById('username-input').addEventListener('change', function (e) {
-                let value = e.target.value.trim()
-                // Only try to extract channel ID if it looks like a chaturbate URL
-                if (value.includes('chaturbate.')) {
-                    let match = value.match(/^(?:https?:\/\/)?(?:[a-zA-Z0-9-]+\.)?chaturbate\.[a-z.]+\/([^\/\s?#]+)/i);
-                    if (match) {
-                        // Replace input with just the username
-                        e.target.value = match[1] 
-                    }
-                }
-                // Otherwise, leave as-is (for comma-separated IDs)
-            });
 
 
-            var CollapsibleItems = (function(){
-
-                function onClickCollapsibleEvent(event) {
-                    let collapseClass = "js-is-collapsed"
-                    console.log('Clicked on:', event.target, event.target.className)
-                   
-                    const box = event.target.closest('.ts-box');
-                    if (box) {
-                        if (box.classList.contains(collapseClass)) {
-                            console.log("User Collapsed")
-                            box.classList.remove(collapseClass)
-                        } else {
-                            box.classList.add(collapseClass)
-                        }
-                    } else {
-                        console.error('No parent .ts-box found for the clicked element.')
-                    }
-               
-                    event.stopPropagation()
-                }
-
-
-                function ensureClickHandlers( el ) {
-                    console.log('Adding click handler to:', el)
-                    el.removeEventListener('click', onClickCollapsibleEvent)
-                    el.addEventListener('click', onClickCollapsibleEvent )
-                }
-                
-                document.querySelectorAll('.js-username-title').forEach(el => {
-                    ensureClickHandlers(el)
-                });
-                 
-                // Attach after HTMX/SSE swaps content
-                document.body.addEventListener('htmx:afterSwap', function(e) {
-                    let sswe_id = e.detail.elt.getAttribute('sse-swap')
-                    if (sswe_id && sswe_id.endsWith("-info") ) {
-                        e.detail.elt.querySelectorAll('.js-username-title').forEach(el => {
-                            ensureClickHandlers(el);
-                        });
-                    }
-                });
-                /**/
-            })()
-            
-            
         </script>
     </body>
 </html>

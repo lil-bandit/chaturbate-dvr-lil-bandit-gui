@@ -24,6 +24,7 @@ func (ch *Channel) Monitor() {
 
 	var err error
 	for {
+
 		if err = ctx.Err(); err != nil {
 			break
 		}
@@ -32,7 +33,11 @@ func (ch *Channel) Monitor() {
 			return ch.RecordStream(ctx, client)
 		}
 		onRetry := func(_ uint, err error) {
-			if errors.Is(err, internal.ErrChannelOffline) {
+			if errors.Is(err, internal.ErrDownPrioritized) {
+				ch.IsDownPrioritized = true
+				ch.Update()
+				ch.Info("Waiting for slot: retrying in %d min(s)", server.Config.Interval)
+			} else if errors.Is(err, internal.ErrChannelOffline) {
 				ch.Info("channel is offline, try again in %d min(s)", server.Config.Interval)
 			} else if errors.Is(err, internal.ErrCloudflareBlocked) {
 				ch.Info("channel was blocked by Cloudflare; try with `-cookies` and `-user-agent`? try again in %d min(s)", server.Config.Interval)
@@ -51,6 +56,8 @@ func (ch *Channel) Monitor() {
 			retry.OnRetry(onRetry),
 		); err != nil {
 			break
+		} else {
+			ch.Error("RECORDING RIGHT? or finished")
 		}
 	}
 
@@ -78,6 +85,16 @@ func (ch *Channel) RecordStream(ctx context.Context, client *chaturbate.Client) 
 		ch.IsOnline = false
 		return fmt.Errorf("get stream: %w", err)
 	}
+	/* Priority management */
+	canStart := server.Manager.PreemptForPriority(ch.Config.Priority)
+	if !canStart {
+		ch.Info("Not starting channel: max connections reached or priority too low. Retrying in %d min(s)...", server.Config.Interval)
+		ch.IsDownPrioritized = true
+		return internal.ErrDownPrioritized // or define your own error
+	} else {
+		ch.IsDownPrioritized = false
+	}
+
 	ch.IsOnline = true
 	ch.StreamedAt = time.Now().Unix()
 
@@ -89,6 +106,7 @@ func (ch *Channel) RecordStream(ctx context.Context, client *chaturbate.Client) 
 	if err != nil {
 		return fmt.Errorf("get playlist: %w", err)
 	}
+
 	ch.Info("stream quality - resolution %dp (target: %dp), framerate %dfps (target: %dfps)", playlist.Resolution, ch.Config.Resolution, playlist.Framerate, ch.Config.Framerate)
 
 	return playlist.WatchSegments(ctx, ch.HandleSegment)

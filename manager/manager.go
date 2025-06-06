@@ -10,11 +10,13 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/r3labs/sse/v2"
 	"github.com/teacat/chaturbate-dvr/channel"
 	"github.com/teacat/chaturbate-dvr/entity"
 	"github.com/teacat/chaturbate-dvr/router/view"
+	"github.com/teacat/chaturbate-dvr/server"
 )
 
 // Manager is responsible for managing channels and their states.
@@ -46,7 +48,7 @@ func (m *Manager) SaveConfig() error {
 		return true
 	})
 
-	b, err := json.Marshal(config)
+	b, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal: %w", err)
 	}
@@ -97,7 +99,7 @@ func (m *Manager) CreateChannel(conf *entity.ChannelConfig, shouldSave bool) err
 		return fmt.Errorf("channel %s already exists", conf.Username)
 	}
 	m.Channels.Store(conf.Username, ch)
-
+	DownloadChannelImage(conf.Username)
 	go ch.Resume(0)
 
 	if shouldSave {
@@ -168,26 +170,6 @@ func (m *Manager) ChannelInfo() []*entity.ChannelInfo {
 	return channels
 }
 
-func DownloadChannelImage(url, filepath string) error {
-	// Get the data
-	resp, err := http.Get(url)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	// Create the file
-	out, err := os.Create(filepath)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-
-	// Write the body to file
-	_, err = io.Copy(out, resp.Body)
-	return err
-}
-
 // Publish sends an SSE event to the specified channel.
 func (m *Manager) Publish(evt entity.Event, info *entity.ChannelInfo) {
 	switch evt {
@@ -212,4 +194,127 @@ func (m *Manager) Publish(evt entity.Event, info *entity.ChannelInfo) {
 // Subscriber handles SSE subscriptions for the specified channel.
 func (m *Manager) Subscriber(w http.ResponseWriter, r *http.Request) {
 	m.SSE.ServeHTTP(w, r)
+}
+
+func (m *Manager) SaveServerConfig() error {
+	appCfg := entity.AppConfig{
+		Framerate:      server.Config.Framerate,
+		Resolution:     server.Config.Resolution,
+		Pattern:        server.Config.Pattern,
+		MaxDuration:    server.Config.MaxDuration,
+		MaxFilesize:    server.Config.MaxFilesize,
+		MaxConnections: server.Config.MaxConnections,
+		Port:           server.Config.Port,
+		Interval:       server.Config.Interval,
+		Cookies:        server.Config.Cookies,
+		UserAgent:      server.Config.UserAgent,
+		Domain:         server.Config.Domain,
+	}
+
+	b, err := json.MarshalIndent(appCfg, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal: %w", err)
+	}
+	if err := os.MkdirAll("./conf", 0777); err != nil {
+		return fmt.Errorf("mkdir all conf: %w", err)
+	}
+	if err := os.WriteFile("./conf/app.json", b, 0777); err != nil {
+		return fmt.Errorf("write file: %w", err)
+	}
+	return nil
+}
+
+func (m *Manager) PreemptForPriority(newPriority int) (canStart bool) {
+	max := server.Config.MaxConnections
+	if max < 1 {
+		return true // unlimited, always allow
+	}
+
+	var (
+		count         int
+		lowestPrio    = int(^uint(0) >> 1) // max int
+		lowestChannel *channel.Channel
+	)
+
+	m.Channels.Range(func(key, value any) bool {
+		ch := value.(*channel.Channel)
+		if ch.IsOnline {
+			count++
+			if ch.Config.Priority < lowestPrio {
+				lowestPrio = ch.Config.Priority
+				lowestChannel = ch
+			}
+		}
+		return true
+	})
+
+	if count < max {
+		return true // slot available, no need to preempt
+	}
+
+	if newPriority > lowestPrio && lowestChannel != nil {
+		lowestChannel.DownPrioritize()
+		return true
+	}
+
+	return false
+}
+
+func (m *Manager) QueueDownPrioritizedChannels(username string) {
+	m.Channels.Range(func(key, value any) bool {
+		ch := value.(*channel.Channel)
+		if ch.IsOnline && ch.IsDownPrioritized {
+			ch.DownPrioritize()
+		}
+		return false
+	})
+
+}
+
+func (m *Manager) GetChannelByUsername(username string) *entity.ChannelInfo {
+	thing, ok := m.Channels.Load(username)
+	if !ok {
+		return nil
+	}
+	ch := thing.(*channel.Channel)
+	return ch.ExportInfo() // assuming ExportInfo returns *entity.ChannelInfo
+}
+
+func (m *Manager) GetChannelRaw(username string) *channel.Channel {
+	thing, ok := m.Channels.Load(username)
+	if !ok {
+		return nil
+	}
+	return thing.(*channel.Channel)
+}
+
+func DownloadChannelImage(username string, force ...bool) error {
+	url := fmt.Sprintf("https://thumb.live.mmcdn.com/riw/%s.jpg?%d", username, time.Now().Unix())
+	filepath := fmt.Sprintf("./conf/channel-images/%s.jpg", username)
+
+	// Only skip download if force is not set or false
+	if len(force) == 0 || !force[0] {
+		if _, err := os.Stat(filepath); err == nil {
+			// File exists, no need to download
+			return nil
+		}
+	}
+
+	if err := os.MkdirAll("./conf/channel-images", 0777); err != nil {
+		return fmt.Errorf("mkdir all images: %w", err)
+	}
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	out, err := os.Create(filepath)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, resp.Body)
+	return err
 }

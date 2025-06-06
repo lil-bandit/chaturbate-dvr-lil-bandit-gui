@@ -18,4 +18,7 @@ type IManager interface {
 	Subscriber(w http.ResponseWriter, r *http.Request)
 	LoadConfig() error
 	SaveConfig() error
+	SaveServerConfig() error
+	PreemptForPriority(priority int) bool
+	GetChannelByUsername(username string) *entity.ChannelInfo
 }

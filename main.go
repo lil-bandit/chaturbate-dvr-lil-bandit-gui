@@ -74,6 +74,16 @@ func main() {
 				Usage: "Split video into segments every N MB ('0' to disable)",
 				Value: 0,
 			},
+			&cli.IntFlag{
+				Name:  "priority",
+				Usage: "video priority (0-xxx, higher is better)",
+				Value: 0,
+			},
+			&cli.IntFlag{
+				Name:  "max-connections",
+				Usage: "Limit the amount of active connections to the channel (0 for unlimited)",
+				Value: 0,
+			},
 			&cli.StringFlag{
 				Name:    "port",
 				Aliases: []string{"p"},
@@ -141,6 +151,7 @@ func start(c *cli.Context) error {
 		Pattern:     c.String("pattern"),
 		MaxDuration: c.Int("max-duration"),
 		MaxFilesize: c.Int("max-filesize"),
+		Priority:    c.Int("priority"),
 	}, false); err != nil {
 		return fmt.Errorf("create channel: %w", err)
 	}
