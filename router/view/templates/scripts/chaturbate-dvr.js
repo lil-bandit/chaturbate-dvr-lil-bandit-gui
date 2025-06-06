@@ -151,6 +151,7 @@
                 document.getElementById('edit-flag').value = "false";
                 document.querySelector('#create-dialog .ts-header').textContent = title_text;
                 document.querySelector('#create-dialog button[type="submit"]').textContent = submit_text;
+                
                 // Remove the close handler
                 document.getElementById('create-dialog').removeEventListener('close', onDialogClose);
                 document.getElementById("myForm").removeEventListener("submit", onSubmit);
@@ -172,24 +173,17 @@
                         // Set edit flag
                         document.getElementById('edit-flag').value = "true";
 
-                        // Fill fields 
+                        // Fill userfield and disable it
+                        // This is a workaround to disable the input field visually, or the value wont be submitted
                         with( document.getElementById('username-input') ) {
                             value  = data.Username || "";
                             blur();
                             with(style) {
-                                 pointerEvents = "none"; // Disable pointer events
+                                pointerEvents = "none"; // Disable pointer events
                                 opacity = "0.5"; // Make it look disabled
                             }
                         }
-                     
-/*
-                        document.getElementById('username-input').value             = data.Username     || "";
-                        //document.getElementById('username-input').disabled          = true;
-                        with ( document.getElementById('username-input').style ) {
-                            pointerEvents = "none"; // Disable pointer events
-                            opacity = "0.5"; // Make it look disabled
-                        } 
-*/
+                        // Fill fields
                         document.querySelector('select[name="resolution"]').value   = data.Resolution   || 1080
                         document.querySelector('input[name="priority"]').value      = data.Priority     || 0
                         document.querySelector('input[name="max_filesize"]').value  = data.MaxFilesize  || 0;
@@ -301,7 +295,7 @@
 
                     gsap.fromTo(box, 
                         { x: deltaX, y: deltaY }, 
-                        { x: 0, y: 0, duration: 0.5, delay:1, ease: "power2.out" }
+                        { x: 0, y: 0, duration: 0.9, delay:.25, ease: "power2.Inout" }
                     );
                 });
 
@@ -350,7 +344,7 @@
         // Start tracking channels
         ChannelTracker( function(channel, status){
             ListSorter.sortNow();
-            console.log("Channel Status Updated: " + channel + " ["+status+"]")
+            //console.log("Channel Status Updated: " + channel + " ["+status+"]")
         })
     
 
