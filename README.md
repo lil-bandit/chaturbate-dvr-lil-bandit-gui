@@ -1,21 +1,34 @@
-Fork of https://github.com/teacat/chaturbate-dvr/tree/master/chaturbate
+Fork of excellent work by TeaCat+
+<br>https://github.com/teacat/chaturbate-dvr/tree/master/chaturbate
 
-Download windows binary: https://github.com/lil-bandit/chaturbate-dvr/releases
+Changes
+=============================
+- More compact list view (Click to expand/collaps)
+- Added thumbnail support ( Put you own JPGs in <config_dir>/channel-images/<channel_name>.jpg <--  )
+- List is automatically sorted by name and grouped by <i>status</i>
+- Added Maximum Connections option
+- Added Channel Priority option ( if Maximum Connections is set )
+- Added Edit button for channels
+- Fixed "Auto-Update & Scroll Logs" ( Item will still update, but only the log output will be disabled )
+- Input takes whole CB URL and will filter the ID automatically.
+- Insert current browsers User-Agent. Small time-saver; if you are using the same browser as for the webgui, user-agent will be the same.
+- Misc. UI changes 
 
-Features
-- Compact list view
-- Misc. UI changes, listitem to expand/collapse, thumbnail
-- Items are automatically sorted by name, grouped by status ( atm. requires manual refresh )
-- Input takes whole CB url, will filter the ID automatically.
-- Small option to insert current browser User-Agent.
-- Added Max Connections and priority
-- Allow channel edit
+Note: Nothing is changed in regards to CloudFlare blocks.
+
 ---------------------------------------------
+
+Download Windows Binary
+=============================
+https://github.com/lil-bandit/chaturbate-dvr/releases
+
 
 Using Docker - Example
 =============================
 
 Start Chaturbate DVR Docker.bat
+(This will previous version and install and run latest)
+After this you should be able to go to localhost:8080
 
 <pre>
 docker stop chaturbate-dvr-lb
