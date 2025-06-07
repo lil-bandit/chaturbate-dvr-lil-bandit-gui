@@ -169,7 +169,7 @@ func UpdateConfig(c *gin.Context) {
 	server.Config.Cookies = req.Cookies
 	server.Config.UserAgent = req.UserAgent
 	server.Config.MaxConnections = req.MaxConnections
-	
+
 	c.Redirect(http.StatusFound, "/")
 }
 

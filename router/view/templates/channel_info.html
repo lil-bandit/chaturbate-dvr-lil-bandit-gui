@@ -10,7 +10,7 @@
         {{ if and .IsDownPrioritized (not .IsPaused) }}
             <span class="ts-badge is-secondary is-small is-start-spaced" style="background-color: rgb(65, 82, 104);">QUEUED</span>
         {{ else if and .IsOnline (not .IsPaused) }}
-            <span class="ts-badge is-small is-negative is-start-spaced" style="background-color: rgb(53, 119, 89);">RECORDING</span>
+            <span class="ts-badge is-small is-negative is-start-spaced" style="background-color: rgb(65, 103, 87);">RECORDING</span>
         {{ else if and (not .IsOnline) (not .IsPaused) }}
             <span class="ts-badge is-secondary is-small is-start-spaced">OFFLINE</span>
         {{ else if .IsPaused }}

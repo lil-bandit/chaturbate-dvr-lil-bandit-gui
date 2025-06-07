@@ -260,6 +260,19 @@ func (m *Manager) PreemptForPriority(newPriority int) (canStart bool) {
 	return false
 }
 
+/* Not used */
+func (m *Manager) UpdateAllChannels() {
+	m.Channels.Range(func(key, value any) bool {
+		ch := value.(*channel.Channel)
+		if !ch.IsOnline {
+			ch.Update()
+		}
+		return false
+	})
+
+}
+
+/* Not used */
 func (m *Manager) QueueDownPrioritizedChannels(username string) {
 	m.Channels.Range(func(key, value any) bool {
 		ch := value.(*channel.Channel)

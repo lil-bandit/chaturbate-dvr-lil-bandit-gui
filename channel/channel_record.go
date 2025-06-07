@@ -44,6 +44,7 @@ func (ch *Channel) Monitor() {
 			} else if errors.Is(err, context.Canceled) {
 				// ...
 			} else {
+				ch.Update() /*lil-bandit : trying to get the channel to update after this message*/
 				ch.Error("on retry: %s: retrying in %d min(s)", err.Error(), server.Config.Interval)
 			}
 		}

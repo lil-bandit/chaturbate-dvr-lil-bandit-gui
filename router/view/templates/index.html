@@ -19,8 +19,15 @@
         <title>Chaturbate DVR</title>
 
         <style>
-            /* Hide everything but the title (username)*/
+            
+            .blocked_badge {
+                /*Cloudflaare*/
+                background-color :#98843c !important; 
+                color: #151515 !important;
+            }
+            
             .js-is-collapsed.ts-box.is-horizontal {
+                /* Hide everything but the title (username)*/
                 align-items: center;
             }
             .ts-container .ts-wrap .ts-box.is-horizontal {
@@ -71,6 +78,7 @@
                 height: 50px;
                 border-radius: 50px;
                 margin-left: .5em;
+                
             }
 
             .ts-box.is-horizontal .column .ts-badge {
@@ -83,6 +91,7 @@
                 user-select: none;
                 -ms-user-select: none; 
                 -webkit-user-select: none;
+                transition: color 1s ease, background-color 1s ease;
                 
             }
 
@@ -97,6 +106,7 @@
                 flex: none;
             }
             
+            /* Rearrange CSS hack */
             [sse-swap] .ts-divider.has-top-spaced {
                 margin-top: 4.5em !important;
             }
@@ -111,6 +121,8 @@
                 width: 100%;
                 margin-top: 0 !important;
             }
+
+
         </style>
     </head>
 
@@ -119,11 +131,11 @@
             <!-- Fixed Header -->
             <div class="cell" style="padding:40px 0px">
                 <div class="ts-bar is-horizontal is-dense is-fixed">
-                    <div class="ts-container" style="--width: 990px">
+                    <div class="ts-container" style="padding: 0 2em 0 1em; --width: 990px">
                         <div class="ts-grid is-bottom-aligned">
                             <div class="column is-fluid">
                                 <div class="ts-header is-huge is-uppercased is-heavy has-leading-small">Chaturbate DVR</div>
-                                <div class="ts-text is-description is-bold">VERSION {{ .Config.Version }}</div>
+                                <div class="ts-text is-description is-bold">VERSION {{ .Config.Version }} (lb test)</div>
                             </div>
                             <div class="column">
                                 <button class="ts-button is-start-icon is-outlined" data-dialog="settings-dialog">
@@ -175,9 +187,9 @@
                             <!-- / Info Section -->
 
                             <!-- Log Section -->
-                            <div class="ts-content is-padded" style="flex: 1;gap: 0.8rem; display: flex; flex-direction: column; margin-top: 3.8rem;">
+                            <div class="ts-content is-padded" style="flex: 1;gap: 0.8rem; display: flex; flex-direction: column; margin-top: 3.8rem; font-size: 12px;">
                                 <div class="ts-input" style="flex: 1">
-                                    <textarea class="has-full-height" readonly sse-swap="{{ .Username }}-log" style="scrollbar-width: thin">{{ range .Logs }}{{ . }}&NewLine;{{ end }}</textarea>
+                                    <textarea class="has-full-height" readonly sse-swap="{{ .Username }}-log" style="font-size: 1em; scrollbar-width: thin">{{ range .Logs }}{{ . }}&NewLine;{{ end }}</textarea>
                                 </div>
                                 <div>
                                     <label class="ts-switch is-small" style="display: flex">
@@ -435,7 +447,7 @@
 
         <script>
  
-
+  
 
         </script>
     </body>
