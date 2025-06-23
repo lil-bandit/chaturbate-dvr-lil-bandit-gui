@@ -155,12 +155,6 @@
 
 
 
-
-
-
-
-
-
         // Edit Channel Dialog          
         var EditChannelDialog = (function() {
             
@@ -180,14 +174,11 @@
             
 
             function onSubmit(e) {
-                   document.getElementById('username-input').disabled = false; 
+                document.getElementById('username-input').disabled = false; 
             }
 
-            function open(username) {
-                
-               
-
-                fetch('/api/channel/' + encodeURIComponent(username))
+            function open( username ) {
+                fetch('/api/channel/' + encodeURIComponent( username ))
                     .then(res => res.json())
                     .then(data => {
                        
@@ -234,251 +225,88 @@
         })()
 
 
-
-
-
-
-
-
-
-        // Channel Tracker - to keep track of updates and kickstart if buggy errors
-
-        function ChannelTracker( onUpdate ){
-            // Run once on load
-            onUpdate = typeof(onUpdate) === "function" ? onUpdate : function(){};
-            var channel_data = {};
-
-
-            function getChannelObj( channel_id ){
-                channel_data[channel_id] = channel_data[channel_id] || {
-                    id: channel_id,
-                    lastInfoUpdate: new Date().getTime(),
-                    lastLogUpdate: new Date().getTime(),
-                    blocked: null,
-                    status: null
-                }; // Create if not exist
-
-                return channel_data[channel_id];
-            }
-
-            function setBlockedStatus( ch ){
-                return null
-                //if( cbdvr.debug ) console.log("Channel:", ch)
-       
-                var delay = function() {
-                    var el = document.body.querySelector("[sse-swap='" + ch.id + "-info'] .ts-badge")
-                    if( el ) {
-                         
-                        if( ch.blocked ) {
-                            el.classList.add("blocked_badge");
-                            el.textContent = "BLOCKED"
-                        }else {
-                            el.classList.remove("blocked_badge");
-                            el.textContent = ch.status || "OFFLINE"
-                        }
-
-                    }else {
-                        console.log("setBlockedStatus : no element found for channel_id", ch.id);
-                    }
-                }
-                setTimeout(delay,50);
-            }
-
-
-            function inspectEvent(e){
-
-                                
-                var now = new Date().getTime();
-
-                // Grab the id
-                let sswe_id     = e.detail.elt.getAttribute('sse-swap')
-                if( !sswe_id ) {
-                    if( cbdvr.debug ) console.log("No sse-swap attribute found on element", e.detail.elt);
-                    return; // Exit if no sse-swap attribute found
-                } 
-                // Parse the id
-                // Example: "channel123-info" or "channel123-log"
-                var divider     = sswe_id.lastIndexOf("-");
-                var channel_id  = sswe_id.substring(0, divider); // "channel123"
-                var log_type    = sswe_id.substring( divider + 1 , sswe_id.length ); // "info" or "log" 
-                
-                if( cbdvr.debug ) console.log( "["+log_type+"]" +" "+ channel_id +":"+ e.type, e);
-                            
-                if( !channel_id ) return cbdvr.debug ? console.log( "Hmmm -----> No channel_id found in sse-swap attribute", e.detail.elt ) : null;
-              
-
-                // Get our "tracking object" of the channel object
-                // This will create it if it does not exist
-                var ch = getChannelObj( channel_id );
-
-                if( log_type === "info" ) {
-                    ch.lastInfoUpdate = now;
-                    
-                    // We parse the HTML to get the status
-                    // We assume the first line is the channel name and the second line is the status
-                    /*
-                    var splt = e.detail.elt.innerText.split("\n");
-                    var txt_channel_id = e.detail.elt.querySelector(".js-username-title").textContent.trim();
-                    */
-                    var txt_badge_status = e.detail.elt.querySelector(".ts-badge").textContent.trim();
-
-                    if( txt_badge_status && ( ch.status !== txt_badge_status ) ) {
-                        ch.status = txt_badge_status;
-                        if( ch.blocked ) setBlockedStatus( ch );
-                        onUpdate( channel_id, txt_badge_status, ch );
-                    }
-                }else if( log_type === "log" ){
-                    ch.lastLogUpdate = now;
-                    let textarea = e.detail.elt.closest(".ts-box").querySelector("textarea")
-                    textarea.scrollTop = textarea.scrollHeight
-                     
-                    // We parse the HTML to get the last line of the log
-                    let lines = e.detail.elt.innerText.split("\n");
-                    let lastLine = lines.length > 0 ? lines[lines.length - 1].trim() : "";
-                    var isBlocked = ( lastLine.indexOf("Cloudflare") > -1 );
-                    if( lastLine && ( isBlocked !== ch.blocked ) ) {
-                        ch.blocked = isBlocked
-                        setBlockedStatus( ch )
-                    }
-                              
-                }
-
-                /*if( ch.emergencyResumeFunc ) {
-                    // If this function exists, it means the channel was paused and we need to resume it
-                    ch.emergencyResumeFunc();
-                }
-                */
-            }
-
-            function healthCheck(){
-                var nowDate = new Date();
-                var now = nowDate.getTime();
-                for (var channel_id in channel_data) {
-                    if ( channel_data.hasOwnProperty(channel_id) ) {
-                        var ch = channel_data[channel_id];
-
-                        if ( ch.status === "RECORDING" && ch.lastInfoUpdate && (now - ch.lastInfoUpdate > 20000 )) {
-                            // Reload the page if the last update of a, supposedly recording, channel was more than 20 seconds ago ( That's too long for a recording to be inactive )
-                            console.log(nowDate + " reloading page for channel: " + ch.id);
-                            location.reload(); // Reload the page to update the status
-
-                        }else if ( ch.status !== "PAUSED" && ch.lastLogUpdate && (now - Math.max(ch.lastLogUpdate, ch.lastInfoUpdate) > 600000 )) {
-                            // If the last log update was more than 10 minutes ago, reload the page
-                            console.log(nowDate + " reloading page for channel: " + ch.id);
-                            location.reload(); // Reload the page to update the status
-                        }
-                    }
-                }
-            }
-
-            document.body.addEventListener('htmx:afterSwap', inspectEvent);
-            setInterval(healthCheck, 10000); // Check every 10 seconds
-        }
-
-
-
-        /*
-        function restartChannel( ch ){
-            if( cbdvr.debug ) console.log("Restarting channel: " + ch.id )
-
-            ch.emergencyResumeFunc = function(){
-                fetch( '/resume_channel/' + ch.id, { method: 'POST' }); 
-                delete this.emergencyResumeFunc;
-            }
-            fetch( '/pause_channel/' + ch.id, { method: 'POST' }); 
-        }
-        */
-
-
-
-
-
         //-----
-    var ListSorter = (function() {
-        var lastOrder = [];
-        var lastUserMoved = 0;
-        var lastAnimationTs = new Date().getTime();
-        var timeout_reference;
-        
-        // Helper to compare two arrays element by element
-        function arraysAreEqual(arr1, arr2) {
-            if (!arr1 || !arr2 || arr1.length !== arr2.length) return false;
-            for (var i = 0; i < arr1.length; i++) {
-                if (arr1[i] !== arr2[i]) return false;
-            }
-            return true;
-        }
-
-        function delayedAnim() {
-            clearTimeout(timeout_reference);
-            timeout_reference = setTimeout(sortRowsCustom, 500);
-        }
-
-        function getStatusPriority(el) {
-            // Using a simple text content check for the '.ts-badge'
-            var badgeEl = el.querySelector('.ts-badge');
-            var badgeText = badgeEl ? badgeEl.textContent.trim() : '';
-            if (badgeText === 'RECORDING') return 0;
-            if (badgeText === 'QUEUED')    return 1;
-            if (badgeText === 'BLOCKED')   return 2;
-            if (badgeText === 'OFFLINE')   return 3;
-            if (badgeText === 'PAUSED')    return 4;
-            return 5;
-        }
-    
-        function sortRowsCustom() {
-            /*
-            // Optionally use this if you want to delay the animation
-            var now = new Date().getTime();
-            if ((now - lastUserMoved) < 3000) return delayedAnim();
-            */
-
-            var container = document.querySelector('.ts-wrap');
-            // Convert NodeList to Array (IE8-friendly alternative if necessary)
-            var boxes = Array.prototype.slice.call(container.querySelectorAll('.ts-box'));
-
-
-
-            // Sort the boxes based on status priority and header text
-            boxes.sort(function(a, b) {
-                var pa = getStatusPriority(a);
-                var pb = getStatusPriority(b);
-                if (pa !== pb) return pa - pb;
-
-                var aHeaderEl = a.querySelector('.ts-header');
-                var bHeaderEl = b.querySelector('.ts-header');
-                var aText = aHeaderEl ? aHeaderEl.textContent.trim() : "";
-                var bText = bHeaderEl ? bHeaderEl.textContent.trim() : "";
-                return aText.localeCompare(bText);
-            });
-
-            // Build the new order array of header texts
-            var newOrder = boxes.map(function(box) {
-                var headerEl = box.querySelector('.ts-header');
-                return headerEl ? headerEl.textContent.trim() : "";
-            });
+        var ListSorter = (function() {
+            var lastOrder = [];
+            var lastUserMoved = 0;
+            var lastAnimationTs = new Date().getTime();
+            var timeout_reference;
             
-            // If the order hasn't changed, skip reordering and animation
-            if (arraysAreEqual(newOrder, lastOrder)) {
-                return;
+            // Helper to compare two arrays element by element
+            function arraysAreEqual(arr1, arr2) {
+                if (!arr1 || !arr2 || arr1.length !== arr2.length) return false;
+                for (var i = 0; i < arr1.length; i++) {
+                    if (arr1[i] !== arr2[i]) return false;
+                }
+                return true;
             }
 
-            // Store initial positions
-            var positions = new Map();
-            boxes.forEach(function(box) {
-                positions.set(box, box.getBoundingClientRect());
-            });
+            function delayedAnim() {
+                clearTimeout(timeout_reference);
+                timeout_reference = setTimeout(sortRowsCustom, 500);
+            }
 
-            // Append in new order to the container
-            boxes.forEach(function(box) {
-                container.appendChild(box);
-            });
+            function getStatusPriority(el) {
+                // Using a simple text content check for the '.ts-badge'
+                var badgeEl = el.querySelector('.ts-badge');
+                var badgeText = badgeEl ? badgeEl.textContent.trim() : '';
+                if (badgeText === 'RECORDING') return 0;
+                if (badgeText === 'QUEUED')    return 1;
+                if (badgeText === 'BLOCKED')   return 2;
+                if (badgeText === 'OFFLINE')   return 3;
+                if (badgeText === 'PAUSED')    return 4;
+                return 5;
+            }
+        
+            function sortRowsCustom() {
+                /*
+                // Optionally use this if you want to delay the animation
+                var now = new Date().getTime();
+                if ((now - lastUserMoved) < 3000) return delayedAnim();
+                */
 
-            // Animate movement using gsap
-            boxes.forEach(function(box) {
-                var oldPos = positions.get(box);
-                var newPos = box.getBoundingClientRect();
-                var deltaX = oldPos.left - newPos.left;
+                var container = document.querySelector('.ts-wrap');
+                var boxes = Array.prototype.slice.call(container.querySelectorAll('.ts-box'));
+
+                // Sort the boxes based on status priority and header text
+                boxes.sort(function(a, b) {
+                    var pa = getStatusPriority(a);
+                    var pb = getStatusPriority(b);
+                    if (pa !== pb) return pa - pb;
+                    var aHeaderEl = a.querySelector('.ts-header');
+                    var bHeaderEl = b.querySelector('.ts-header');
+                    var aText = aHeaderEl ? aHeaderEl.textContent.trim() : "";
+                    var bText = bHeaderEl ? bHeaderEl.textContent.trim() : "";
+                    return aText.localeCompare(bText);
+                });
+
+                // Build the new order array of header texts
+                var newOrder = boxes.map(function(box) {
+                    var headerEl = box.querySelector('.ts-header');
+                    return headerEl ? headerEl.textContent.trim() : "";
+                });
+                
+                // If the order hasn't changed, skip reordering and animation
+                if (arraysAreEqual(newOrder, lastOrder)) {
+                    return;
+                }
+
+                // Store initial positions
+                var positions = new Map();
+                boxes.forEach(function(box) {
+                    positions.set(box, box.getBoundingClientRect());
+                });
+
+                // Append in new order to the container
+                boxes.forEach(function(box) {
+                    container.appendChild(box);
+                });
+
+                // Animate movement using gsap
+                boxes.forEach(function(box) {
+                    var oldPos = positions.get(box);
+                    var newPos = box.getBoundingClientRect();
+                    var deltaX = oldPos.left - newPos.left;
                     var deltaY = oldPos.top - newPos.top;
 
                     gsap.fromTo(
@@ -505,10 +333,9 @@
             };
         })();
 
+
+
         //-----
-
-
- 
 
         function getChannel(username, onData){
             if(!username) return onData(null);
@@ -527,19 +354,12 @@
                     onData(data)
                 })
         }
-
-
-
-
-
-
-        
+     
 
         function pauseChannel(channel_id, onData){
                 fetch( '/pause_channel/' + channel_id, { method: 'POST' }).then(function(response) {
                     if (response.ok) {
-                        // Optionally, you can refresh the page or update the UI after deletion
-                        //location.reload();
+
                     } else {
                         console.error("Failed to pause channel:", channel_id);
                     }
@@ -549,17 +369,34 @@
         function resumeChannel(channel_id, onData){
                 fetch( '/resume_channel/' + channel_id, { method: 'POST' }).then(function(response) {
                     if (response.ok) {
-                        // Optionally, you can refresh the page or update the UI after deletion
-                        //location.reload();
+
                     } else {
                         console.error("Failed to resume channel:", channel_id);
                     }
                 });                
         }       
 
-        function insertUserAgent(){
-            document.querySelector('#settings-dialog textarea[name="user_agent"]').value = navigator.userAgent;
+        function confirmChannelDeletion (channel_id) {
+            console.log(channel_id)
+            var modal = document.getElementById('delete-confirm');
+            if(!modal) return console.error("No delete-confirm modal found in the document.");
+          
+            modal.querySelector('.channel-name').innerHTML = channel_id;
+            modal.querySelector('.channel-thumbnail').style.backgroundImage = "url('./channel-images/" + channel_id + ".jpg'), url('static/default_user.png')";;
+            modal.querySelector('.btn-ok').onclick = function() {
+                fetch('/stop_channel/' + channel_id, { method: 'POST' }).then(function(response) {
+                    if (response.ok) {
+                        // Optionally, you can refresh the page or update the UI after deletion
+                        location.reload();
+                    } else {
+                        console.error("Failed to delete channel:", channel_id);
+                    }
+                }); 
+            };
+     
+            modal.showModal();
         }
+
 
 
         function enableSSEDebugging(channel_id){
@@ -592,73 +429,6 @@
 
 
 
-
-
-        var CookieManager = (function () {
-            function setCookie(name, value, days) {
-                var expires = new Date();
-                expires.setDate(expires.getDate() + ( days || 9999 ));
-                document.cookie = name + "=" + encodeURIComponent(JSON.stringify(value)) + "; expires=" + expires.toUTCString() + "; path=/";
-            }
-
-            function getCookie(name) {
-                var cookies = document.cookie.split("; ");
-                for (var i = 0; i < cookies.length; i++) {
-                    var cookieParts = cookies[i].split("=");
-                    if (cookieParts[0] === name) {
-                        try {
-                            return JSON.parse(decodeURIComponent(cookieParts[1]));
-                        } catch (e) {
-                            return null; // Prevent errors if parsing fails
-                        }
-                    }
-                }
-                return null;
-            }
-
-            function deleteCookie(name) {
-                document.cookie = name + "=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/";
-            }
-
-            function deleteAllCookies() {
-                var cookies = document.cookie.split("; ");
-                for (var i = 0; i < cookies.length; i++) {
-                    var cookieParts = cookies[i].split("=");
-                    document.cookie = cookieParts[0] + "=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/";
-                }
-            }
-
-            return {
-                SetCookie: setCookie,
-                GetCookie: getCookie,
-                DeleteCookie: deleteCookie,
-                DeleteAllCookies: deleteAllCookies
-            };
-        })();  
-        
-        
-
-        function getActiveFiles(onComplete, divider) {
-            var a = [];
-            
-            getChannels(function(channels) {
-                if (!Array.isArray(channels)) {
-                    if( cbdvr.debug ) console.error("getChannels did not return a valid array.");
-                    return;
-                }
-                
-                channels.forEach(function(ch) {
-                    if (ch && ch.IsOnline && ch.Filename) {
-                        a.push(ch.Filename);
-                    }
-                });
-                
-                if (typeof onComplete === "function") {
-                    onComplete(a.join(divider || "\r\n"));
-                }
-            });
-        }
-
         function blurForDemo() {
             // Blur thumbnails and channel-header when taking screenshots
             document.body.querySelectorAll(".js-username-title").forEach(function(el) {
@@ -668,62 +438,27 @@
                 el.style.filter = "blur(3px)";
             });
         }
-
-        function confirmChannelDeletion (channel_id) {
-            console.log(channel_id)
-            var modal = document.getElementById('delete-confirm');
-            if(!modal) return console.error("No delete-confirm modal found in the document.");
-          
-            modal.querySelector('.channel-name').innerHTML = channel_id;
-            modal.querySelector('.channel-thumbnail').style.backgroundImage = "url('./channel-images/" + channel_id + ".jpg'), url('static/default_user.png')";;
-            modal.querySelector('.btn-ok').onclick = function() {
-                fetch('/stop_channel/' + channel_id, { method: 'POST' }).then(function(response) {
-                    if (response.ok) {
-                        // Optionally, you can refresh the page or update the UI after deletion
-                        location.reload();
-                    } else {
-                        console.error("Failed to delete channel:", channel_id);
-                    }
-                }); 
-            };
-     
-            modal.showModal();
-        }
         
 
         //Global/public object for the app
+
         window.cbdvr = (function(){
             return {
                 initTs: new Date().getTime(),
                 editChannel: EditChannelDialog.open,
                 sortList: ListSorter.sortNow,
-                ChannelTracker: ChannelTracker,
-                insertUserAgent: insertUserAgent,
                 enableSSEDebugging: enableSSEDebugging,
                 debug: false,
                 blurForDemo: blurForDemo,
                 getChannels: getChannels,
                 getChannel: getChannel,
-                getActiveFiles: getActiveFiles,
                 resumeChannel: resumeChannel,
                 pauseChannel: pauseChannel,
                 confirmChannelDeletion: confirmChannelDeletion
             }
         })()
-    
-    
-
-        // Start tracking channels
-        ChannelTracker( function(channel, status){
-            ListSorter.sortNow();
-            //if( cbdvr.debug )
-                if( cbdvr.debug ) console.log("Channel Status Updated: " + channel + " ["+status+"]")
-        })
-    
 
 
     } /* End Of main */ 
-
-
 
 })()
