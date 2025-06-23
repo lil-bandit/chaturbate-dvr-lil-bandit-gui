@@ -482,7 +482,9 @@
         }
 
 
-
+        function insertUserAgent(){
+            document.querySelector('#settings-dialog textarea[name="user_agent"]').value = navigator.userAgent;
+        }
 
 
         function getChannel(username, onData){
@@ -631,7 +633,8 @@
                 resumeChannel: resumeChannel,
                 pauseChannel: pauseChannel,
                 confirmChannelDeletion: confirmChannelDeletion,
-                updateChannelThumbnail:updateChannelThumbnail
+                updateChannelThumbnail:updateChannelThumbnail,
+                insertUserAgent: insertUserAgent,
             }
         })()
 
