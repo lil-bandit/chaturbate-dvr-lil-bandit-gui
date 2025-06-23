@@ -99,7 +99,7 @@ func (m *Manager) CreateChannel(conf *entity.ChannelConfig, shouldSave bool) err
 		return fmt.Errorf("channel %s already exists", conf.Username)
 	}
 	m.Channels.Store(conf.Username, ch)
-	DownloadChannelImage(conf.Username)
+	m.DownloadChannelImage(conf.Username)
 	go ch.Resume(0)
 
 	if shouldSave {
@@ -386,7 +386,7 @@ func (m *Manager) GetChannelRaw(username string) *channel.Channel {
 	return thing.(*channel.Channel)
 }
 
-func DownloadChannelImage(username string, force ...bool) error {
+func (m *Manager) DownloadChannelImage(username string, force ...bool) error {
 	url := fmt.Sprintf("https://thumb.live.mmcdn.com/riw/%s.jpg?%d", username, time.Now().Unix())
 	filepath := fmt.Sprintf("./conf/channel-images/%s.jpg", username)
 

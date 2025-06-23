@@ -268,7 +268,7 @@ func main() {
 			&cli.StringFlag{
 				Name:  "output-dir",
 				Usage: "Folder where completed recordings will be moved",
-				Value: "./complete", // default fallback
+				Value: "", // default fallback
 			},
 		},
 		Action: start,

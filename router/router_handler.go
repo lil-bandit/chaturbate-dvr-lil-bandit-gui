@@ -191,6 +191,26 @@ func UpdateConfig(c *gin.Context) {
 	c.Redirect(http.StatusFound, "/")
 }
 
+func UpdateThumbnail(c *gin.Context) {
+
+	username := c.Param("username")
+
+	mgr, ok := server.Manager.(*manager.Manager)
+	if !ok {
+		c.String(http.StatusInternalServerError, "Manager type assertion failed")
+		return
+	}
+
+	_ = mgr.DownloadChannelImage(username, true)
+
+	chInfo := server.Manager.GetChannelByUsername(username)
+	if chInfo == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Channel not found"})
+		return
+	}
+	c.JSON(http.StatusOK, chInfo)
+}
+
 func UpdateChannel(c *gin.Context) {
 	username := c.Param("username")
 	mgr, ok := server.Manager.(*manager.Manager) // import "github.com/teacat/chaturbate-dvr/manager"
