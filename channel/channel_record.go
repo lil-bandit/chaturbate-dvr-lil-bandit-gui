@@ -36,7 +36,7 @@ func (ch *Channel) Monitor() {
 			ch.IsBlocked = false
 			ch.IsDownPrioritized = false
 			ch.IsOnline = false // not sure this is needed
-			
+
 			if errors.Is(err, internal.ErrDownPrioritized) {
 				ch.IsDownPrioritized = true
 				ch.Info("Waiting for slot: retrying in %d min(s)", server.Config.Interval)
@@ -99,7 +99,7 @@ func (ch *Channel) RecordStream(ctx context.Context, client *chaturbate.Client) 
 		ch.Info("Channel is online, but maximum connections reached or priority too low. Retrying in %d min(s)...", server.Config.Interval)
 		return internal.ErrDownPrioritized // or define your own error
 	}
-
+	ch.IsBlocked = false
 	ch.IsOnline = true
 	ch.StreamedAt = time.Now().Unix()
 
