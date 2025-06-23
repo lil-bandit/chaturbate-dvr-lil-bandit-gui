@@ -62,8 +62,9 @@ type CreateChannelRequest struct {
 	Pattern     string `form:"pattern" binding:"required"`
 	MaxDuration int    `form:"max_duration"`
 	MaxFilesize int    `form:"max_filesize"`
+	MinFilesize int    `form:"min_filesize"`
 	Priority    int    `form:"priority"`
-	Edit        bool   `form:"edit"`
+	//Edit        bool   `form:"edit"`
 }
 
 // CreateChannel creates a new channel.
@@ -96,10 +97,9 @@ func CreateChannel(c *gin.Context) {
 		ch.Config.Pattern = req.Pattern
 		ch.Config.MaxDuration = req.MaxDuration
 		ch.Config.MaxFilesize = req.MaxFilesize
+		//ch.Config.MinFilesize = req.MinFilesize
 		ch.Config.Priority = req.Priority
 
-		fmt.Printf("---------> req.Priority: %d\n", req.Priority)
-		fmt.Printf("---------> req.Priority: %d\n", req.MaxDuration)
 		if err := mgr.SaveConfig(); err != nil {
 			c.String(http.StatusInternalServerError, "Failed to save config: %v", err)
 			return
@@ -118,8 +118,9 @@ func CreateChannel(c *gin.Context) {
 			Pattern:     req.Pattern,
 			MaxDuration: req.MaxDuration,
 			MaxFilesize: req.MaxFilesize,
-			Priority:    req.Priority,
-			CreatedAt:   time.Now().Unix(),
+			//MinFilesize: req.MinFilesize,
+			Priority:  req.Priority,
+			CreatedAt: time.Now().Unix(),
 		}, true)
 	}
 	c.Redirect(http.StatusFound, "/")
@@ -153,29 +154,68 @@ func Updates(c *gin.Context) {
 
 // UpdateConfigRequest represents the request body for updating configuration.
 type UpdateConfigRequest struct {
-	Cookies        string `form:"cookies"`
-	UserAgent      string `form:"user_agent"`
-	MaxConnections int    `form:"max_connections"`
+	Cookies            string `form:"cookies"`
+	UserAgent          string `form:"user_agent"`
+	MaxConnections     int    `form:"max_connections"`
+	MinFilesize        int    `form:"min_filesize"`
+	PersistSettingsTmp string `form:"persist_settings"`
 }
 
 // UpdateConfig updates the server configuration.
 func UpdateConfig(c *gin.Context) {
 	var req *UpdateConfigRequest
+
 	if err := c.Bind(&req); err != nil {
 		c.AbortWithError(http.StatusBadRequest, fmt.Errorf("bind: %w", err))
 		return
 	}
 
+	//persistSettings := c.Param("persist_settings")
+
 	server.Config.Cookies = req.Cookies
 	server.Config.UserAgent = req.UserAgent
 	server.Config.MaxConnections = req.MaxConnections
+	server.Config.MinFilesize = req.MinFilesize
+	server.Config.PersistSettings = req.PersistSettingsTmp == "on"
+
+	if server.Config.PersistSettings {
+		if err := server.Manager.SaveServerConfig(); err != nil {
+			_ = fmt.Errorf("save server config: %w", err)
+		}
+	} else {
+		if err := server.Manager.DeleteServerConfig(); err != nil {
+			_ = fmt.Errorf("delete server config: %w", err)
+		}
+	}
 
 	c.Redirect(http.StatusFound, "/")
+}
+
+func UpdateChannel(c *gin.Context) {
+	username := c.Param("username")
+	mgr, ok := server.Manager.(*manager.Manager) // import "github.com/teacat/chaturbate-dvr/manager"
+	if !ok {
+		c.String(http.StatusInternalServerError, "Manager type assertion failed")
+		return
+	}
+	ch := mgr.GetChannelRaw(username)
+	chInfo := mgr.GetChannelByUsername(username)
+	if ch == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Channel not found"})
+		return
+	} else {
+
+		mgr.Publish(entity.EventLog, ch.ExportInfo())
+		fmt.Printf("Updating channel: %s\n", username)
+	}
+	c.JSON(http.StatusOK, chInfo)
+
 }
 
 // GetChannelJSON responds with the JSON representation of a channel's information.
 func GetChannelJSON(c *gin.Context) {
 	username := c.Param("username")
+
 	chInfo := server.Manager.GetChannelByUsername(username)
 	if chInfo == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Channel not found"})

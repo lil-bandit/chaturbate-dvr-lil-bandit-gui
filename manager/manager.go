@@ -198,17 +198,20 @@ func (m *Manager) Subscriber(w http.ResponseWriter, r *http.Request) {
 
 func (m *Manager) SaveServerConfig() error {
 	appCfg := entity.AppConfig{
-		Framerate:      server.Config.Framerate,
-		Resolution:     server.Config.Resolution,
-		Pattern:        server.Config.Pattern,
-		MaxDuration:    server.Config.MaxDuration,
-		MaxFilesize:    server.Config.MaxFilesize,
-		MaxConnections: server.Config.MaxConnections,
-		Port:           server.Config.Port,
-		Interval:       server.Config.Interval,
-		Cookies:        server.Config.Cookies,
-		UserAgent:      server.Config.UserAgent,
-		Domain:         server.Config.Domain,
+		Framerate:       server.Config.Framerate,
+		Resolution:      server.Config.Resolution,
+		Pattern:         server.Config.Pattern,
+		MaxDuration:     server.Config.MaxDuration,
+		MaxFilesize:     server.Config.MaxFilesize,
+		MinFilesize:     server.Config.MinFilesize,
+		MaxConnections:  server.Config.MaxConnections,
+		PersistSettings: server.Config.PersistSettings,
+		OutputDir:       server.Config.OutputDir,
+		Port:            server.Config.Port,
+		Interval:        server.Config.Interval,
+		Cookies:         server.Config.Cookies,
+		UserAgent:       server.Config.UserAgent,
+		Domain:          server.Config.Domain,
 	}
 
 	b, err := json.MarshalIndent(appCfg, "", "  ")
@@ -218,8 +221,16 @@ func (m *Manager) SaveServerConfig() error {
 	if err := os.MkdirAll("./conf", 0777); err != nil {
 		return fmt.Errorf("mkdir all conf: %w", err)
 	}
-	if err := os.WriteFile("./conf/app.json", b, 0777); err != nil {
+	if err := os.WriteFile("./conf/persisted-settings.json", b, 0777); err != nil {
 		return fmt.Errorf("write file: %w", err)
+	}
+	return nil
+}
+
+func (m *Manager) DeleteServerConfig() error {
+	err := os.Remove("./conf/persisted-settings.json")
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("delete file: %w", err)
 	}
 	return nil
 }
@@ -231,11 +242,14 @@ func (m *Manager) PreemptForPriority(newPriority int) (canStart bool) {
 	}
 
 	var (
-		count         int
-		lowestPrio    = int(^uint(0) >> 1) // max int
-		lowestChannel *channel.Channel
+		count          int
+		lowestPrio     = int(^uint(0) >> 1) // max int
+		highestPrio    = 0                  // max int
+		lowestChannel  *channel.Channel
+		highestChannel *channel.Channel
 	)
 
+	// Count online channels and find the lowest priority channel that we can potentially stop/preempt
 	m.Channels.Range(func(key, value any) bool {
 		ch := value.(*channel.Channel)
 		if ch.IsOnline {
@@ -252,7 +266,20 @@ func (m *Manager) PreemptForPriority(newPriority int) (canStart bool) {
 		return true // slot available, no need to preempt
 	}
 
-	if newPriority > lowestPrio && lowestChannel != nil {
+	// Find the highest priority channel amongst queued (IsDownPrioritized == true) channels, that can potentially wait for to start instead
+	m.Channels.Range(func(key, value any) bool {
+		ch := value.(*channel.Channel)
+		if ch.IsDownPrioritized {
+			if ch.Config.Priority > highestPrio {
+				highestPrio = ch.Config.Priority
+				highestChannel = ch
+			}
+		}
+		return true
+	})
+
+	// If the new channel's priority is higher than the lowest online channel's priority, and either there is no higher priority channel waiting or the new channel's priority is higher than the highest waiting channel's priority, we can down-prioritize the lowest online channel
+	if newPriority > lowestPrio && lowestChannel != nil && (highestChannel == nil || newPriority > highestPrio) {
 		lowestChannel.DownPrioritize()
 		return true
 	}
@@ -260,6 +287,64 @@ func (m *Manager) PreemptForPriority(newPriority int) (canStart bool) {
 	return false
 }
 
+/*
+func (m *Manager) PreemptForPriority(currentChannel *channel.Channel) bool {
+	max := server.Config.MaxConnections
+	if max < 1 {
+		return true // unlimited, always allow
+	}
+
+	var all []*channel.Channel
+
+	// Collect all channels into a slice
+	m.Channels.Range(func(_, value any) bool {
+		ch := value.(*channel.Channel)
+		all = append(all, ch)
+		return true
+	})
+
+	// Sort by: priority (desc), then name (asc)
+	sort.Slice(all, func(i, j int) bool {
+		if all[i].Config.Priority != all[j].Config.Priority {
+			return all[i].Config.Priority > all[j].Config.Priority
+		}
+		return all[i].Name < all[j].Name
+	})
+
+	// Count currently online channels
+	var onlineCount int
+	for _, ch := range all {
+		if ch.IsOnline {
+			onlineCount++
+		}
+	}
+
+	// If there's room, allow start
+	if onlineCount < max {
+		return true
+	}
+
+	// Select the top N channels that deserve to be online
+	deserved := all[:max]
+
+	// Check if the current channel is among the top N
+	for _, ch := range deserved {
+		if ch == currentChannel {
+			// Preempt a lower-priority online channel (if any)
+			for _, ch := range all[max:] {
+				if ch.IsOnline {
+					ch.DownPrioritize()
+					break
+				}
+			}
+			return true
+		}
+	}
+
+	return false
+}
+
+*/
 /* Not used */
 func (m *Manager) UpdateAllChannels() {
 	m.Channels.Range(func(key, value any) bool {
@@ -305,7 +390,7 @@ func DownloadChannelImage(username string, force ...bool) error {
 	url := fmt.Sprintf("https://thumb.live.mmcdn.com/riw/%s.jpg?%d", username, time.Now().Unix())
 	filepath := fmt.Sprintf("./conf/channel-images/%s.jpg", username)
 
-	// Only skip download if force is not set or false
+	// Only skip download if force is not set  false
 	if len(force) == 0 || !force[0] {
 		if _, err := os.Stat(filepath); err == nil {
 			// File exists, no need to download

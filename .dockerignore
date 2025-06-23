@@ -1,6 +1,8 @@
 .git
 .gitignore
 *.log
+*.bat
 *.tmp
 videos/
+complete/
 conf/

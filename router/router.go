@@ -48,6 +48,7 @@ func SetupStatic(r *gin.Engine) {
 	}
 	r.StaticFS("/static", fs)
 	r.Static("/channel-images", "./conf/channel-images")
+	r.Static("/recordings", "./videos")
 }
 
 // setupViews registers HTML templates and view handlers.
@@ -59,6 +60,7 @@ func SetupViews(r *gin.Engine) {
 	r.POST("/stop_channel/:username", StopChannel)
 	r.POST("/pause_channel/:username", PauseChannel)
 	r.POST("/resume_channel/:username", ResumeChannel)
+	r.POST("/update_channel/:username", UpdateChannel)
 	r.GET("/api/channel/:username", GetChannelJSON)
 	r.GET("/api/channels", GetAllChannelsJSON)
 }

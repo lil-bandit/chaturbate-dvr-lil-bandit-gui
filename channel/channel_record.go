@@ -15,7 +15,7 @@ import (
 // Monitor starts monitoring the channel for live streams and records them.
 func (ch *Channel) Monitor() {
 	client := chaturbate.NewClient()
-	ch.Info("starting to record `%s`", ch.Config.Username)
+	ch.Info("starting to monitor `%s`", ch.Config.Username)
 
 	// Create a new context with a cancel function,
 	// the CancelFunc will be stored in the channel's CancelFunc field
@@ -33,20 +33,24 @@ func (ch *Channel) Monitor() {
 			return ch.RecordStream(ctx, client)
 		}
 		onRetry := func(_ uint, err error) {
+			ch.IsBlocked = false
+			ch.IsDownPrioritized = false
+			ch.IsOnline = false // not sure this is needed
+			
 			if errors.Is(err, internal.ErrDownPrioritized) {
 				ch.IsDownPrioritized = true
-				ch.Update()
 				ch.Info("Waiting for slot: retrying in %d min(s)", server.Config.Interval)
 			} else if errors.Is(err, internal.ErrChannelOffline) {
 				ch.Info("channel is offline, try again in %d min(s)", server.Config.Interval)
 			} else if errors.Is(err, internal.ErrCloudflareBlocked) {
+				ch.IsBlocked = true
 				ch.Info("channel was blocked by Cloudflare; try with `-cookies` and `-user-agent`? try again in %d min(s)", server.Config.Interval)
 			} else if errors.Is(err, context.Canceled) {
 				// ...
 			} else {
-				ch.Update() /*lil-bandit : trying to get the channel to update after this message*/
 				ch.Error("on retry: %s: retrying in %d min(s)", err.Error(), server.Config.Interval)
 			}
+			ch.Update()
 		}
 		if err = retry.Do(
 			pipeline,
@@ -66,6 +70,7 @@ func (ch *Channel) Monitor() {
 		if !errors.Is(err, context.Canceled) {
 			ch.Error("record stream: %s", err.Error())
 		}
+
 		if err := ch.Cleanup(); err != nil {
 			ch.Error("cleanup canceled channel: %s", err.Error())
 		}
@@ -73,7 +78,7 @@ func (ch *Channel) Monitor() {
 }
 
 // Update sends an update signal to the channel's update channel.
-// This notifies the Server-sent Event to boradcast the channel information to the client.
+// This notifies the Server-sent Event to broadcast the channel information to the client.
 func (ch *Channel) Update() {
 	ch.UpdateCh <- true
 }
@@ -82,18 +87,17 @@ func (ch *Channel) Update() {
 // It retrieves the stream information and starts watching the segments.
 func (ch *Channel) RecordStream(ctx context.Context, client *chaturbate.Client) error {
 	stream, err := client.GetStream(ctx, ch.Config.Username)
+
 	if err != nil {
 		ch.IsOnline = false
 		return fmt.Errorf("get stream: %w", err)
 	}
+
 	/* Priority management */
 	canStart := server.Manager.PreemptForPriority(ch.Config.Priority)
 	if !canStart {
-		ch.Info("Not starting channel: max connections reached or priority too low. Retrying in %d min(s)...", server.Config.Interval)
-		ch.IsDownPrioritized = true
+		ch.Info("Channel is online, but maximum connections reached or priority too low. Retrying in %d min(s)...", server.Config.Interval)
 		return internal.ErrDownPrioritized // or define your own error
-	} else {
-		ch.IsDownPrioritized = false
 	}
 
 	ch.IsOnline = true

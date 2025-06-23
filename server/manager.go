@@ -19,6 +19,7 @@ type IManager interface {
 	LoadConfig() error
 	SaveConfig() error
 	SaveServerConfig() error
+	DeleteServerConfig() error
 	PreemptForPriority(priority int) bool
 	GetChannelByUsername(username string) *entity.ChannelInfo
 }

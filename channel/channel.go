@@ -20,6 +20,7 @@ type Channel struct {
 
 	IsOnline          bool
 	IsDownPrioritized bool
+	IsBlocked         bool // Used for blocking channels
 	StreamedAt        int64
 	Duration          float64 // Seconds
 	Filesize          int     // Bytes
@@ -101,20 +102,22 @@ func (ch *Channel) ExportInfo() *entity.ChannelInfo {
 		IsOnline:          ch.IsOnline,
 		IsPaused:          ch.Config.IsPaused,
 		IsDownPrioritized: ch.IsDownPrioritized,
+		IsBlocked:         ch.IsBlocked,
 		Username:          ch.Config.Username,
 		MaxDuration:       internal.FormatDuration(float64(ch.Config.MaxDuration * 60)), // MaxDuration from config is in minutes
 		MaxFilesize:       internal.FormatFilesize(ch.Config.MaxFilesize * 1024 * 1024), // MaxFilesize from config is in MB
-		StreamedAt:        streamedAt,
-		CreatedAt:         ch.Config.CreatedAt,
-		Duration:          internal.FormatDuration(ch.Duration),
-		Filesize:          internal.FormatFilesize(ch.Filesize),
-		Priority:          ch.Config.Priority,
-		Filename:          filename,
-		Logs:              ch.Logs,
-		GlobalConfig:      server.Config,
-		Framerate:         ch.Config.Framerate,
-		Resolution:        ch.Config.Resolution,
-		Pattern:           ch.Config.Pattern,
+		//MinFilesize:       internal.FormatFilesize(ch.Config.MinFilesize * 1024 * 1024), // MinFilesize from config is in MB
+		StreamedAt:   streamedAt,
+		CreatedAt:    ch.Config.CreatedAt,
+		Duration:     internal.FormatDuration(ch.Duration),
+		Filesize:     internal.FormatFilesize(ch.Filesize),
+		Priority:     ch.Config.Priority,
+		Filename:     filename,
+		Logs:         ch.Logs,
+		GlobalConfig: server.Config,
+		Framerate:    ch.Config.Framerate,
+		Resolution:   ch.Config.Resolution,
+		Pattern:      ch.Config.Pattern,
 	}
 }
 
@@ -122,19 +125,19 @@ func (ch *Channel) ExportInfo() *entity.ChannelInfo {
 // This is called when a channel with higher priority is online, and MaxConnections is reached.
 
 func (ch *Channel) DownPrioritize() {
-	// Stop the monitoring loop <-- Not sure this is the best
+	// Stop the monitoring loop
 	ch.CancelFunc()
-
 	ch.IsDownPrioritized = true
 	ch.Sequence = 0
 	ch.IsOnline = false
 
+	time_delay := time.Duration(server.Config.Interval) * time.Minute
+	ch.Info("Downprioritized [%s]", ch.Config.Username)
 	ch.Update()
-	ch.Info("------------> Channel Down prioritized")
+	<-time.After(time_delay) // Wait for the interval before starting the monitoring again
 
-	<-time.After(1000 * time.Millisecond)
+	// Resume the channel monitoring after the delay
 	ch.Monitor()
-
 }
 
 // Pause pauses the channel and cancels the context.

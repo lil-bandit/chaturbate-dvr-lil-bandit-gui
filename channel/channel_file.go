@@ -6,7 +6,10 @@ import (
 	"html/template"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
+
+	"github.com/teacat/chaturbate-dvr/server"
 )
 
 // Pattern holds the date/time and sequence information for the filename pattern
@@ -44,10 +47,7 @@ func (ch *Channel) Cleanup() error {
 	if ch.File == nil {
 		return nil
 	}
-	defer func() {
-		ch.Filesize = 0
-		ch.Duration = 0
-	}()
+	defer func() { ch.File = nil }() // Always nil ch.File at the end
 
 	// Sync the file to ensure data is written to disk
 	if err := ch.File.Sync(); err != nil {
@@ -57,14 +57,22 @@ func (ch *Channel) Cleanup() error {
 		return fmt.Errorf("close file: %w", err)
 	}
 
-	// Delete the empty file
-	if ch.Filesize <= 0 {
-		if err := os.Remove(ch.File.Name()); err != nil {
-			return fmt.Errorf("remove zero file: %w", err)
-		}
+	filename := ch.File.Name()
+	// Check size
+	fi, err := os.Stat(filename)
+	if err != nil {
+		ch.Error("cannot stat file: %v", err)
+		return nil
 	}
-
-	ch.File = nil
+	if fi.Size() <= 1024*1024*int64(server.Config.MinFilesize) {
+		if err := os.Remove(filename); err != nil {
+			return fmt.Errorf("remove small file: %w", err)
+		}
+		return nil
+	}
+	if server.Config.OutputDir != "" {
+		ch.MoveFinishedFile(filename)
+	}
 	return nil
 }
 
@@ -122,4 +130,40 @@ func (ch *Channel) ShouldSwitchFile() bool {
 
 	return (ch.Duration >= float64(maxDurationSeconds) && ch.Config.MaxDuration > 0) ||
 		(ch.Filesize >= maxFilesizeBytes && ch.Config.MaxFilesize > 0)
+}
+
+func (ch *Channel) MoveFinishedFile(filename string) {
+
+	if filename == "" || ch.File == nil {
+		ch.Error("no filename or file to move")
+		return
+	}
+
+	parentPath := filepath.Join(server.Config.OutputDir, filepath.Dir(removeFirstDirectory(filename)))
+
+	if err := os.MkdirAll(parentPath, os.ModePerm); err != nil {
+		ch.Error("could not create dest folder: %v", err)
+		return
+	}
+
+	destPath := filepath.Join(parentPath, filepath.Base(filename))
+
+	// If it fails to create the directory, log the error and return
+	if err := os.Rename(filename, destPath); err != nil {
+		ch.Error("failed to move file: %v", err)
+		return
+	}
+
+	ch.Info("moved file to: %s", destPath)
+}
+
+func removeFirstDirectory(path string) string {
+	path = filepath.Clean(path)
+	path = strings.TrimPrefix(path, string(filepath.Separator))
+	parts := strings.Split(path, string(filepath.Separator))
+	if len(parts) <= 1 {
+		return path
+	}
+	newParts := parts[1:]
+	return strings.Join(newParts, string(filepath.Separator))
 }

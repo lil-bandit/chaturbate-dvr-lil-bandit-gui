@@ -14,7 +14,7 @@ import (
 	"github.com/grafov/m3u8"
 	"github.com/samber/lo"
 	"github.com/teacat/chaturbate-dvr/internal"
-	"github.com/teacat/chaturbate-dvr/server"
+	//	"github.com/teacat/chaturbate-dvr/server"
 )
 
 // roomDossierRegexp is used to extract the room dossier information from the HTML response.
@@ -39,7 +39,8 @@ func (c *Client) GetStream(ctx context.Context, username string) (*Stream, error
 
 // FetchStream retrieves the streaming data from the given username's page.
 func FetchStream(ctx context.Context, client *internal.Req, username string) (*Stream, error) {
-	body, err := client.Get(ctx, fmt.Sprintf("%s%s", server.Config.Domain, username))
+	// Replace the following line with the correct domain or configuration source
+	body, err := client.Get(ctx, fmt.Sprintf("https://chaturbate.com/%s", username))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get page body: %w", err)
 	}
