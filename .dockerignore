@@ -3,6 +3,7 @@
 *.log
 *.bat
 *.tmp
+*.exe
 videos/
 complete/
 conf/

@@ -37,6 +37,11 @@ func (ch *Channel) Monitor() {
 			ch.IsDownPrioritized = false
 			ch.IsOnline = false // not sure this is needed
 
+			// Possible fix to #114 0KB bug
+			if err := ch.Cleanup(); err != nil {
+				ch.Error("cleanup on retry: %v", err)
+			}
+
 			if errors.Is(err, internal.ErrDownPrioritized) {
 				ch.IsDownPrioritized = true
 				ch.Info("Waiting for slot: retrying in %d min(s)", server.Config.Interval)

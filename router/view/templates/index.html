@@ -27,9 +27,11 @@
                 /*transform: translateX(3px); */ /* Moves it slightly to the right */
             } 
             
+            /* COLLAPSE CSS */
             .js-is-collapsed > div > :not(:first-child), .js-is-collapsed .ts-input { 
                 display: none;
             }
+
             .ts-box.is-horizontal .ts-input{
 
                 margin-top: 1.9em; /* Adjusted for better spacing */
@@ -158,6 +160,10 @@
                 pointer-events: none;
             }
 
+            .blur-for-demo .channel-thumbnail, .blur-for-demo .js-username-title {
+                filter: blur(3px);
+            }
+
             .ts-box.is-horizontal .column .ts-badge {
                 padding: .7em .7em;
                 padding-left: .8em;
@@ -168,7 +174,7 @@
                 user-select: none;
                 -ms-user-select: none; 
                 -webkit-user-select: none;
-                transition: color 1s ease, background-color 1s ease;
+                transition: color 1s ease, background-color 2s ease;
                 margin-right: -6px;
             }
 

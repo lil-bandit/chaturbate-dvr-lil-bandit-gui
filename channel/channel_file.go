@@ -50,7 +50,6 @@ func (ch *Channel) Cleanup() error {
 	defer func() {
 		ch.Filesize = 0
 		ch.Duration = 0
-		ch.File = nil
 	}() // Always nil ch.File at the end
 
 	// Sync the file to ensure data is written to disk
@@ -74,9 +73,13 @@ func (ch *Channel) Cleanup() error {
 		}
 		return nil
 	}
+
+	// If we get here, we definitely have a file to move
 	if server.Config.OutputDir != "" {
 		ch.MoveFinishedFile(filename)
 	}
+
+	ch.File = nil
 	return nil
 }
 
@@ -137,38 +140,43 @@ func (ch *Channel) ShouldSwitchFile() bool {
 }
 
 func (ch *Channel) MoveFinishedFile(finishedFileName string) {
+	// Normalize path
+	finishedFileName = filepath.Clean(finishedFileName)
 
-	if finishedFileName == "" || ch.File == nil {
-		ch.Error("no filename or file to move")
+	// Supports pattern with folder, examples:
+	// "videos/qtiepie_2025-06-24_18-29-04.ts"
+	// "videos/some_hottie/some_hottie_2025-06-24_18-29-04.ts"
+	// "videos/boogie_411/2025/06-24_18-29-04.ts"
+
+	// Extract the first directory as srcRoot
+	parts := strings.SplitN(finishedFileName, string(filepath.Separator), 2)
+	if len(parts) < 2 {
+		ch.Error("unexpected source path: %s", finishedFileName)
 		return
 	}
+	srcRoot := parts[0]
+	srcRootWithSep := srcRoot + string(filepath.Separator)
+	dstRoot := server.Config.OutputDir
 
-	// Pattern can contain directories, so we need to reflect those directories in the "complete" ( OutputDir ) directory
-	parentPath := filepath.Join(server.Config.OutputDir, filepath.Dir(removeFirstDirectoryFromPath(finishedFileName)))
+	// Remove the first directory prefix
+	relPath := strings.TrimPrefix(finishedFileName, srcRootWithSep)
+	destPath := filepath.Join(dstRoot, relPath)
 
-	if err := os.MkdirAll(parentPath, os.ModePerm); err != nil {
+	if err := os.MkdirAll(filepath.Dir(destPath), os.ModePerm); err != nil {
 		ch.Error("could not create dest folder: %v", err)
 		return
 	}
 
-	destPath := filepath.Join(parentPath, filepath.Base(finishedFileName))
-
-	// If it fails to move the file, log the error and return
 	if err := os.Rename(finishedFileName, destPath); err != nil {
 		ch.Error("failed to move file: %v", err)
 		return
 	}
-
 	ch.Info("moved file to: %s", destPath)
-}
 
-func removeFirstDirectoryFromPath(path string) string {
-	path = filepath.Clean(path)
-	path = strings.TrimPrefix(path, string(filepath.Separator))
-	parts := strings.Split(path, string(filepath.Separator))
-	if len(parts) <= 1 {
-		return path
+	// Cleanup empty parent directories up to the first directory
+	srcDir := filepath.Dir(finishedFileName)
+	for srcDir != srcRoot && srcDir != "." && srcDir != string(filepath.Separator) {
+		_ = os.Remove(srcDir)
+		srcDir = filepath.Dir(srcDir)
 	}
-	newParts := parts[1:]
-	return strings.Join(newParts, string(filepath.Separator))
 }

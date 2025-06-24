@@ -7,9 +7,9 @@
          <div class="ts-header js-username-title">{{ .Username }}</div>
     </div>
     <div class="channel-menu column">
-        <button title="Open channel in browser" onclick="window.open('{{ .GlobalConfig.Domain }}{{.Username }}','_blank')" class="channel-menu-item ts-icon">&#xf35d;</button>
-        <button title="Edit channel" onclick="cbdvr.editChannel('{{.Username }}')" class="channel-menu-item ts-icon is-gear-icon"></button>
-        <button title="Delete channel" onclick="cbdvr.confirmChannelDeletion('{{.Username}}')" class="channel-menu-item ts-icon is-trash-icon"></button>
+        <button title="Open channel in browser" onpointerdown="window.open('{{ .GlobalConfig.Domain }}{{.Username }}','_blank')" class="channel-menu-item ts-icon">&#xf35d;</button>
+        <button title="Edit channel" onpointerdown="cbdvr.editChannel('{{.Username }}', event)" class="channel-menu-item ts-icon is-gear-icon"></button>
+        <button title="Delete channel" onpointerdown="cbdvr.confirmChannelDeletion('{{.Username}}',event)" class="channel-menu-item ts-icon is-trash-icon"></button>
         
         <!--
         <form action="/stop_channel/{{ .Username }}" method="POST" onsubmit="return confirm('Are you sure you want to delete `{{ .Username }}` channel?')">
@@ -18,15 +18,15 @@
     </div>    
     <div class="column">
         {{ if .IsPaused }}
-            <span onclick="cbdvr.resumeChannel('{{.Username }}')" class="ts-badge is-negative is-small is-start-spaced" title="Click to resume channel" style="background-color: rgb(134, 63, 63);">PAUSED</span>
+            <span onpointerdown="cbdvr.resumeChannel('{{.Username }}')" class="ts-badge is-negative is-small is-start-spaced" title="Click to resume channel" style="background-color: rgb(134, 63, 63);">PAUSED</span>
         {{ else if .IsBlocked }}
-            <span onclick="cbdvr.pauseChannel('{{.Username }}')"class="ts-badge is-secondary is-small is-start-spaced" title="Click to pause channel" style="background-color: #736840;">BLOCKED</span>
+            <span onpointerdown="cbdvr.pauseChannel('{{.Username }}')"class="ts-badge is-secondary is-small is-start-spaced" title="Click to pause channel" style="background-color: #736840;">BLOCKED</span>
         {{ else if .IsDownPrioritized }}
-            <span onclick="cbdvr.pauseChannel('{{.Username }}')" class="ts-badge is-secondary is-small is-start-spaced" title="Click to pause channel" style="background-color: rgb(65, 82, 104);">QUEUED</span> 
+            <span onpointerdown="cbdvr.pauseChannel('{{.Username }}')" class="ts-badge is-secondary is-small is-start-spaced" title="Click to pause channel" style="background-color: rgb(65, 82, 104);">QUEUED</span> 
         {{ else if .IsOnline }}
-            <span onclick="cbdvr.pauseChannel('{{.Username }}')" class="ts-badge is-small is-negative is-start-spaced" title="Click to pause channel" style="background-color: rgb(65, 103, 87);">RECORDING</span>
+            <span onpointerdown="cbdvr.pauseChannel('{{.Username }}')" class="ts-badge is-small is-negative is-start-spaced" title="Click to pause channel" style="background-color: rgb(65, 103, 87);">RECORDING</span>
         {{ else }}            
-            <span onclick="cbdvr.pauseChannel('{{.Username }}')" class="ts-badge is-secondary is-small is-start-spaced" title="Click to pause channel" >OFFLINE</span>
+            <span onpointerdown="cbdvr.pauseChannel('{{.Username }}')" class="ts-badge is-secondary is-small is-start-spaced" title="Click to pause channel" >OFFLINE</span>
         {{ end }}
     </div>
 </div>
@@ -130,7 +130,7 @@
         class="ts-button is-start-icon is-secondary"
         data-dialog="create-dialog"
         data-username="{{ .Username }}"
-        onclick="cbdvr.editChannel('{{.Username }}')">
+        onpointerdown="cbdvr.editChannel('{{.Username }}')">
             <span class="ts-icon is-gear-icon"></span>
             Edit
         </button>

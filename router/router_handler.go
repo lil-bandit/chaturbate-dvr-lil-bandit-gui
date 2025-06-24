@@ -24,16 +24,16 @@ func sortChannels(channels []*entity.ChannelInfo) {
 	sort.Slice(channels, func(i, j int) bool {
 		rank := func(chInfo *entity.ChannelInfo) int {
 			switch {
-			case !chInfo.IsPaused && chInfo.IsOnline && !chInfo.IsDownPrioritized:
-				return 0 // Highest priority
+			case !chInfo.IsPaused && !chInfo.IsDownPrioritized && chInfo.IsOnline:
+				return 0 // "ONLINE"
 			case !chInfo.IsPaused && chInfo.IsDownPrioritized:
-				return 1
-			case chInfo.IsBlocked:
-				return 2 // Next priority
-			case !chInfo.IsOnline:
-				return 3 // Next priority
+				return 1 // "QUEUED"
+			case !chInfo.IsPaused && chInfo.IsBlocked:
+				return 2 // "BLOCKED"
+			case !chInfo.IsPaused && !chInfo.IsOnline:
+				return 3 // "OFFLINE"
 			case chInfo.IsPaused:
-				return 4 // Next priority
+				return 4 // "PAUSED"
 			default:
 				return 5 // The rest
 			}
