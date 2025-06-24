@@ -47,7 +47,11 @@ func (ch *Channel) Cleanup() error {
 	if ch.File == nil {
 		return nil
 	}
-	defer func() { ch.File = nil }() // Always nil ch.File at the end
+	defer func() {
+		ch.Filesize = 0
+		ch.Duration = 0
+		ch.File = nil
+	}() // Always nil ch.File at the end
 
 	// Sync the file to ensure data is written to disk
 	if err := ch.File.Sync(); err != nil {
@@ -139,15 +143,15 @@ func (ch *Channel) MoveFinishedFile(finishedFileName string) {
 		return
 	}
 
-	// Pattern can contain directories, so we need to reflect those directories in the "complete" ( OutputDir ) directory 
-	parentPath := filepath.Join( server.Config.OutputDir, filepath.Dir( removeFirstDirectoryFromPath( finishedFileName ) ) )
+	// Pattern can contain directories, so we need to reflect those directories in the "complete" ( OutputDir ) directory
+	parentPath := filepath.Join(server.Config.OutputDir, filepath.Dir(removeFirstDirectoryFromPath(finishedFileName)))
 
-	if err := os.MkdirAll( parentPath, os.ModePerm ); err != nil {
+	if err := os.MkdirAll(parentPath, os.ModePerm); err != nil {
 		ch.Error("could not create dest folder: %v", err)
 		return
 	}
 
-	destPath := filepath.Join( parentPath, filepath.Base( finishedFileName ) )
+	destPath := filepath.Join(parentPath, filepath.Base(finishedFileName))
 
 	// If it fails to move the file, log the error and return
 	if err := os.Rename(finishedFileName, destPath); err != nil {
