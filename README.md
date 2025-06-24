@@ -15,6 +15,7 @@ Changes
 - Input takes whole CB URL and will filter the ID automatically.
 - Insert current browsers User-Agent. Small time-saver; if you are using the same browser as for the webgui, user-agent will be the same.
 - Misc. UI changes
+- You can set a minimum filesize, anything below it will get deleted (--minimum-filesize <MB>)  - added 2025-06-23
 - You can now define a directory for completed files (--output-dir <directory name>) - added 2025-06-23 ( With help from misterkoko ) 
 - You can now use a preset config (--config <file.json>) - added 2025-06-23 ( With help from misterkoko ) 
 - Use persisted settings ( Use the tick box in the server settings dialog ) - added 2025-06-23
