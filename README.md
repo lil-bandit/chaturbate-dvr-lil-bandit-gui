@@ -15,9 +15,9 @@ Changes
 - Input takes whole CB URL and will filter the ID automatically.
 - Insert current browsers User-Agent. Small time-saver; if you are using the same browser as for the webgui, user-agent will be the same.
 - Misc. UI changes
-- You can set a minimum filesize, anything below it will get deleted (--minimum-filesize <MB>)  - added 2025-06-23
-- You can now define a directory for completed files (--output-dir <directory name>) - added 2025-06-23 ( With help from misterkoko ) 
-- You can now use a preset config (--config <file.json>) - added 2025-06-23 ( With help from misterkoko ) 
+- You can set a minimum filesize, anything below it will get deleted (-min-filesize <MB>)  - added 2025-06-23
+- You can now define a directory for completed files (-output-dir <directory name>) - added 2025-06-23 ( With help from misterkoko ) 
+- You can now use a preset config (-config <file.json>) - added 2025-06-23 ( With help from misterkoko ) 
 - Use persisted settings ( Use the tick box in the server settings dialog ) - added 2025-06-23
 - Refresh Thumbnail ( Click on the thumbnail of active channel to get new thumbnail - warning: Images in the browser can be cached, so press CTRL+SHIFT+R to refresh browser+cache )  - added 2025-06-23
 - Minimizing DOM updates by cancelling LOG updates when a listitem is collapsed  - added 2025-06-23
@@ -90,3 +90,23 @@ After editing and running the BATfile, you should be able to go to http://localh
 
 
 ![image](https://github.com/user-attachments/assets/84c185cf-3c70-4493-89bb-1ca7fdcce3fc)
+
+
+
+
+Bonus tips:
+=============================
+
+If you just want a comma sperated list of some active channels, 
+then go to official cb site and run the following in the console :
+<pre>
+[...new Set(
+  Array.from(document.querySelectorAll('#roomlist_content_wrapper a'))
+    .map(a => a.getAttribute('href'))
+    .filter(href => href && href.startsWith('/') && !href.includes('?'))
+    .map(href => href.replace(/^\/|\/$/g, ''))
+)].join(",")
+</pre>
+
+
+
