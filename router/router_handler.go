@@ -198,8 +198,16 @@ func UpdateConfig(c *gin.Context) {
 }
 
 func UpdateThumbnail(c *gin.Context) {
+
 	username := c.Param("username")
-	server.Manager.DownloadChannelImage(username, true)
+
+	mgr, ok := server.Manager.(*manager.Manager)
+	if !ok {
+		c.String(http.StatusInternalServerError, "Manager type assertion failed")
+		return
+	}
+
+	_ = mgr.DownloadChannelImage(username, true)
 
 	chInfo := server.Manager.GetChannelByUsername(username)
 	if chInfo == nil {
