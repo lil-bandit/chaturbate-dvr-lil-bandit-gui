@@ -158,8 +158,17 @@
             };
 
             // Instead of click (more responsive with SSE DOM updates, clicks are not lost)
+            /*
             document.body.addEventListener("mousedown", handler);
             document.body.addEventListener("touchstart", handler);
+            */
+            document.body.addEventListener('pointerdown', (e) => {
+            if (e.pointerType === 'touch' || e.pointerType === 'mouse') {
+                handler(e);
+            }
+            });     
+            
+           
 
         })()
 
@@ -189,6 +198,12 @@
                 document.getElementById('username-input').disabled = false; 
             }
 
+            function timeStringToMinutes(timeStr) {
+                if(!timeStr) return 0
+                const [hours, minutes, seconds] = timeStr.split(':').map(Number);
+                return hours * 60 + minutes + Math.floor(seconds / 60);
+            }
+
             function open( username ) {
                 fetch('/api/channel/' + encodeURIComponent( username ))
                     .then(res => res.json())
@@ -207,11 +222,12 @@
                         input.style.pointerEvents = "none";
                         input.style.opacity = "0.5";
                         
-                        // Fill fields
+
+                       // Fill fields
                         document.querySelector('select[name="resolution"]').value   = data.Resolution   || 1080
                         document.querySelector('input[name="priority"]').value      = data.Priority     || 0
                         document.querySelector('input[name="max_filesize"]').value  = data.MaxFilesize  || 0;
-                        document.querySelector('input[name="max_duration"]').value  = data.MaxDuration  || 0;
+                        document.querySelector('input[name="max_duration"]').value  = timeStringToMinutes(data.MaxDuration);
                         document.querySelector('input[name="pattern"]').value       = data.Pattern      || "";
 
                         title_text = document.querySelector('#create-dialog .ts-header').textContent
