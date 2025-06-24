@@ -18,7 +18,7 @@ Changes
 - You can now define a directory for completed files (--output-dir <directory name>) - added 2025-06-23 ( With help from misterkoko ) 
 - You can now use a preset config (--config <file.json>) - added 2025-06-23 ( With help from misterkoko ) 
 - Use persisted settings ( Use the tick box in the server settings dialog ) - added 2025-06-23
-- Refresh Thumbnail ( Images in the browser can be cached, so press CTRL+SHIFT+R to refresh browser+cache )  - added 2025-06-23
+- Refresh Thumbnail ( Click on the thumbnail of active channel to get new thumbnail - warning: Images in the browser can be cached, so press CTRL+SHIFT+R to refresh browser+cache )  - added 2025-06-23
 
 
 - API additions
