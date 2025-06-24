@@ -16,3 +16,5 @@ docker run -d ^
   -domain "https://chaturbate.com/" ^
   -interval 1 ^
   -max-connections 10 ^
+  -min-filesize 10 ^
+  -output-dir complete
