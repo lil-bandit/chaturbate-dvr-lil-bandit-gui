@@ -22,16 +22,20 @@ type IndexData struct {
 // sortChannels sorts the channels based on custom criteria.
 func sortChannels(channels []*entity.ChannelInfo) {
 	sort.Slice(channels, func(i, j int) bool {
-		rank := func(ch *entity.ChannelInfo) int {
+		rank := func(chInfo *entity.ChannelInfo) int {
 			switch {
-			case !ch.IsPaused && ch.IsOnline && !ch.IsDownPrioritized:
+			case !chInfo.IsPaused && chInfo.IsOnline && !chInfo.IsDownPrioritized:
 				return 0 // Highest priority
-			case !ch.IsPaused && ch.IsDownPrioritized:
+			case !chInfo.IsPaused && chInfo.IsDownPrioritized:
 				return 1
-			case ch.IsPaused:
+			case chInfo.IsBlocked:
 				return 2 // Next priority
+			case !chInfo.IsOnline:
+				return 3 // Next priority
+			case chInfo.IsPaused:
+				return 4 // Next priority
 			default:
-				return 3 // The rest
+				return 5 // The rest
 			}
 		}
 		ri, rj := rank(channels[i]), rank(channels[j])
@@ -77,6 +81,8 @@ func CreateChannel(c *gin.Context) {
 
 	edit := c.PostForm("edit") == "true"
 	fmt.Printf("---------------->  EDIT from form: %v\n", edit)
+
+	// EDIT MODE
 	if edit {
 
 		// Edit mode: update existing channel config
@@ -97,7 +103,6 @@ func CreateChannel(c *gin.Context) {
 		ch.Config.Pattern = req.Pattern
 		ch.Config.MaxDuration = req.MaxDuration
 		ch.Config.MaxFilesize = req.MaxFilesize
-		//ch.Config.MinFilesize = req.MinFilesize
 		ch.Config.Priority = req.Priority
 
 		if err := mgr.SaveConfig(); err != nil {
@@ -108,6 +113,7 @@ func CreateChannel(c *gin.Context) {
 		return
 	}
 
+	// CREATE MODE
 	// Create mode: create new channel(s)
 	for _, username := range strings.Split(req.Username, ",") {
 		server.Manager.CreateChannel(&entity.ChannelConfig{
@@ -176,7 +182,7 @@ func UpdateConfig(c *gin.Context) {
 	server.Config.UserAgent = req.UserAgent
 	server.Config.MaxConnections = req.MaxConnections
 	server.Config.MinFilesize = req.MinFilesize
-	server.Config.PersistSettings = req.PersistSettingsTmp == "on"
+	server.Config.PersistSettings = (req.PersistSettingsTmp == "on") // Check string to get boolean
 
 	if server.Config.PersistSettings {
 		if err := server.Manager.SaveServerConfig(); err != nil {
@@ -192,16 +198,8 @@ func UpdateConfig(c *gin.Context) {
 }
 
 func UpdateThumbnail(c *gin.Context) {
-
 	username := c.Param("username")
-
-	mgr, ok := server.Manager.(*manager.Manager)
-	if !ok {
-		c.String(http.StatusInternalServerError, "Manager type assertion failed")
-		return
-	}
-
-	_ = mgr.DownloadChannelImage(username, true)
+	server.Manager.DownloadChannelImage(username, true)
 
 	chInfo := server.Manager.GetChannelByUsername(username)
 	if chInfo == nil {
@@ -235,7 +233,6 @@ func UpdateChannel(c *gin.Context) {
 // GetChannelJSON responds with the JSON representation of a channel's information.
 func GetChannelJSON(c *gin.Context) {
 	username := c.Param("username")
-
 	chInfo := server.Manager.GetChannelByUsername(username)
 	if chInfo == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Channel not found"})

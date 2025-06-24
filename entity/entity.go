@@ -17,10 +17,9 @@ type ChannelConfig struct {
 	Pattern     string `json:"pattern"`
 	MaxDuration int    `json:"max_duration"`
 	MaxFilesize int    `json:"max_filesize"`
-	//MinFilesize int    `json:"min_filesize"`
-	Priority  int   `json:"priority"`
-	CreatedAt int64 `json:"created_at"`
-	//IsBlocked bool  `json:"is_blocked"`
+	Priority    int    `json:"priority"`
+	CreatedAt   int64  `json:"created_at"`
+	//IsBlocked bool  `json:"is_blocked"` <-- It's not a "construction" or persistent property, IsBlocked is moslty for info and template
 }
 
 // ChannelInfo represents the information about a channel,

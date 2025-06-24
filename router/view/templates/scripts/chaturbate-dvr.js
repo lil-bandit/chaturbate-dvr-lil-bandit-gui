@@ -429,12 +429,13 @@
                     var txt_badge_status = e.detail.elt.querySelector(".ts-badge").textContent.trim();
 
                     if( txt_badge_status && ( ch.status !== txt_badge_status ) ) {
-                        ch.status = txt_badge_status;
-                        if( ch.blocked ) setBlockedStatus( ch );
+                        // ch.status = txt_badge_status;
+                        // if( ch.blocked ) setBlockedStatus( ch );
                         onUpdate( channel_id, txt_badge_status, ch );
                     }
                 }else if( log_type === "log" ){
                     ch.lastLogUpdate = now;
+                    
                     let textarea = e.detail.elt.closest(".ts-box").querySelector("textarea")
                     textarea.scrollTop = textarea.scrollHeight
                      
@@ -444,7 +445,7 @@
                     var isBlocked = ( lastLine.indexOf("Cloudflare") > -1 );
                     if( lastLine && ( isBlocked !== ch.blocked ) ) {
                         ch.blocked = isBlocked
-                        setBlockedStatus( ch )
+                        // setBlockedStatus( ch ) // <-- We moved all this into go
                     }
                               
                 }
@@ -488,20 +489,20 @@
 
 
         function getChannel(username, onData){
-            if(!username) return onData(null);
+            if(!username) return onData ? onData(null) : null;
             fetch('/api/channel/:' + encodeURIComponent(username))
                 .then(res => res.json())
                 .then(data => {
-                    onData(data)
+                    if(onData) onData(data)
                 })
         }
 
         function getChannels(onData){
-            
+            if(!username) return onData ? onData(null) : null;
             fetch('/api/channels/')
                 .then(res => res.json())
                 .then(data => {
-                    onData(data)
+                    if(onData) onData(data)
                 })
         }
      

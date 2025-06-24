@@ -132,24 +132,25 @@ func (ch *Channel) ShouldSwitchFile() bool {
 		(ch.Filesize >= maxFilesizeBytes && ch.Config.MaxFilesize > 0)
 }
 
-func (ch *Channel) MoveFinishedFile(filename string) {
+func (ch *Channel) MoveFinishedFile(finishedFileName string) {
 
-	if filename == "" || ch.File == nil {
+	if finishedFileName == "" || ch.File == nil {
 		ch.Error("no filename or file to move")
 		return
 	}
 
-	parentPath := filepath.Join(server.Config.OutputDir, filepath.Dir(removeFirstDirectory(filename)))
+	// Pattern can contain directories, so we need to reflect those directories in the "complete" ( OutputDir ) directory 
+	parentPath := filepath.Join( server.Config.OutputDir, filepath.Dir( removeFirstDirectoryFromPath( finishedFileName ) ) )
 
-	if err := os.MkdirAll(parentPath, os.ModePerm); err != nil {
+	if err := os.MkdirAll( parentPath, os.ModePerm ); err != nil {
 		ch.Error("could not create dest folder: %v", err)
 		return
 	}
 
-	destPath := filepath.Join(parentPath, filepath.Base(filename))
+	destPath := filepath.Join( parentPath, filepath.Base( finishedFileName ) )
 
-	// If it fails to create the directory, log the error and return
-	if err := os.Rename(filename, destPath); err != nil {
+	// If it fails to move the file, log the error and return
+	if err := os.Rename(finishedFileName, destPath); err != nil {
 		ch.Error("failed to move file: %v", err)
 		return
 	}
@@ -157,7 +158,7 @@ func (ch *Channel) MoveFinishedFile(filename string) {
 	ch.Info("moved file to: %s", destPath)
 }
 
-func removeFirstDirectory(path string) string {
+func removeFirstDirectoryFromPath(path string) string {
 	path = filepath.Clean(path)
 	path = strings.TrimPrefix(path, string(filepath.Separator))
 	parts := strings.Split(path, string(filepath.Separator))
