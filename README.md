@@ -20,7 +20,7 @@ Changes
 - You can now use a preset config (--config <file.json>) - added 2025-06-23 ( With help from misterkoko ) 
 - Use persisted settings ( Use the tick box in the server settings dialog ) - added 2025-06-23
 - Refresh Thumbnail ( Click on the thumbnail of active channel to get new thumbnail - warning: Images in the browser can be cached, so press CTRL+SHIFT+R to refresh browser+cache )  - added 2025-06-23
-
+- Minimizing DOM updates by cancelling LOG updates when a listitem is collapsed  - added 2025-06-23
 
 - API additions
   - //localhost:8080/api/channel/:username <-- gets all info and status of a channel
