@@ -14,7 +14,12 @@ Changes
 - Fixed "Auto-Update & Scroll Logs" ( Item will still update, but only the log output will be disabled )
 - Input takes whole CB URL and will filter the ID automatically.
 - Insert current browsers User-Agent. Small time-saver; if you are using the same browser as for the webgui, user-agent will be the same.
-- Misc. UI changes 
+- Misc. UI changes
+- You can now define a directory for completed files (--output-dir <directory name>) - added 2025-06-23 ( With help from misterkoko ) 
+- You can now use a preset config (--config <file.json>) - added 2025-06-23 ( With help from misterkoko ) 
+- Use persisted settings ( Use the tick box in the server settings dialog ) - added 2025-06-23
+- Refresh Thumbnail ( Click on the thumbnail of active channel to get new thumbnail - warning: Images in the browser can be cached, so press CTRL+SHIFT+R to refresh browser+cache )  - added 2025-06-23
+
 
 - API additions
   - //localhost:8080/api/channel/:username <-- gets all info and status of a channel
@@ -23,9 +28,9 @@ Changes
 <br>
 
 <b>Note regarding Maximum Connections limit:</b> 
-1. If you use the GUI to set a limit that is lower than current amount of active downloads,
-   then the active downloads will <i>reamain</i> active. You can pause / resume the ones you want to <i>queue</i>.
-2. When "replacing" active downloads with higher priority ones, it sometimes takes one "cycle" to reflect the changes ( 1 minute, default )
+~~1. If you use the GUI to set a limit that is lower than current amount of active downloads,
+   then the active downloads will <i>reamain</i> active. You can pause / resume the ones you want to <i>queue</i>.~~  this SHOULD work now.. i think :D 
+2. When "replacing" active downloads with higher priority ones, it sometimes takes one "cycle" to reflect the changes ( 1 minute, default ) 
 
 
 
