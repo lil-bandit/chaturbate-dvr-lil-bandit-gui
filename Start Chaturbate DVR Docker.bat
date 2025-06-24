@@ -6,6 +6,9 @@ docker rmi lilbandit/chaturbate-dvr
 rem  # Download the latest image
 docker pull lilbandit/chaturbate-dvr  
 
+rem  # Wait a couple of secs
+ping 127.0.0.1 -n 3 >nul
+
 rem  # Create and run new container ( Edit to match desired paths on your system )
 docker run -d ^
   --name chaturbate-dvr-lb ^
@@ -17,4 +20,4 @@ docker run -d ^
   -interval 1 ^
   -max-connections 10 ^
   -min-filesize 10 ^
-  -output-dir complete
+  -output-dir ./complete
