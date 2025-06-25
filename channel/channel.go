@@ -137,7 +137,7 @@ func (ch *Channel) DownPrioritize() {
 	<-time.After(time_delay) // Wait for the interval before starting the monitoring again
 
 	// Resume the channel monitoring after the delay
-	ch.Monitor()
+	go ch.Monitor()
 }
 
 // Pause pauses the channel and cancels the context.
@@ -172,5 +172,5 @@ func (ch *Channel) Resume(startSeq int) {
 	ch.Info("channel resumed")
 
 	<-time.After(time.Duration(startSeq) * time.Second)
-	ch.Monitor()
+	go ch.Monitor()
 }

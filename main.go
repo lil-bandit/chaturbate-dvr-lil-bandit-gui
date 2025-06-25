@@ -263,7 +263,7 @@ func main() {
 			&cli.StringFlag{
 				Name:  "domain",
 				Usage: "Chaturbate domain to use",
-				Value: "https://chaturbate.global/",
+				Value: "https://chaturbate.com/",
 			},
 			&cli.StringFlag{
 				Name:  "output-dir",

@@ -21,23 +21,37 @@
         <style>
             
 
-            
+            .ts-app-layout > .is-scrollable {
+                /* Force visible scrollbar, so expanding seems less jerky */
+                overflow-y: scroll !important;
+            }
+
             .js-username-title:hover {
-                color: #FFF;  
-                /*transform: translateX(3px); */ /* Moves it slightly to the right */
+                /*color: #FFF; oops forgot about light mode*/  
+                display: "";
             } 
             
             /* COLLAPSE CSS */
-            .js-is-collapsed > div > :not(:first-child), .js-is-collapsed .ts-input { 
-                display: none;
+
+            .ts-box.is-horizontal.js-is-collapsed > div > :not(:first-child), .ts-box.is-horizontal.js-is-collapsed textarea { 
+                opacity: 0;
+            }  
+
+            .ts-box.is-horizontal > div > div, .ts-box.is-horizontal textarea { 
+                transition: opacity .6s linear;
+                opacity: 1;
+            }  
+            
+            .ts-box.is-horizontal.js-is-collapsed > div  { 
+                height: 0px;
             }
 
-            .ts-box.is-horizontal .ts-input{
+            .ts-box.is-horizontal > div  { 
+                transition: height .6s ease-in-out;
+                height: 400px;
+            }  
 
-                margin-top: 1.9em; /* Adjusted for better spacing */
-            }
-      
-    
+            /* Hack */
             .channel-header {
                 position: absolute;
                 width: calc(100% - 3.5em);
@@ -48,37 +62,38 @@
                 cursor: pointer;
                 user-select: none;
                 -webkit-user-select: none;
-                -ms-user-select: none;
-                color: #CCC; 
-                transition: transform 0.3s ease; /* Adds a smooth animation */  
-                padding: .7em 0; /* Makes it easier to click the title */
+                -ms-user-select: none; 
+                padding: .7em 0; 
             }
 
 
 
 
+     
+            
+          
 
-            .channel-header .ts-header a {
+
+            /*.channel-header .ts-header a {
                 color: #afafff;
                 margin-left: 0.4em;
                 text-decoration: none;
-            }
-            .channel-header .ts-header a:hover {
-                /*color: #CCC;*/
+            }*/
+
+            /*.channel-header .ts-header a:hover {
+             
                 color: #afafff;
-            }
+            }*/
             
 
 
             .channel-header .channel-menu-item {
-                color: #CCC;
                 margin-left: 1em;
                 cursor: pointer;
                 font-size: .88em !important;
                 opacity: .3;
                 display: inline-block;
-                color: #CCC;
-                border: 1px solid rgba(255, 255, 255, .2);
+                border: 1px solid var(--ts-gray-400);
                 border-radius: 40px;
                 text-align: center;
                 width: 2.3rem;
@@ -90,27 +105,30 @@
             .channel-header .channel-menu-item:hover {
                 color: #afafff;
                 opacity: 1;
+                border: 2px solid var(--ts-gray-400);
             }
 
             /* Thumbnail */
 
             .channel-thumbnail {
                 background-image: url('static/default_user.png');
-                background-size: cover;
+                background-size: contain;
+                
                 background-position: center;
                 width: 50px;
                 height: 50px;           
                 border-radius: 100px;
                 position: relative;
                 opacity: .7;
-                border: 3px solid rgba(0,0,0,0.2);
+                
             }
+            
             .channel-header .channel-thumbnail {
-                    left:-4px;               
+                left:-4px;               
             }
 
             .channel-header .channel-thumbnail.is-online {
-                    opacity: 1;              
+                opacity: 1;              
             }
 
             #delete-confirm .channel-thumbnail {
@@ -119,8 +137,7 @@
             }
 
             
-            /* Refresh thumbnail */
-            
+            /* Refresh thumbnail arrow */
             .channel-header .channel-thumbnail::after {
                 content: "\f2f1";
                 font-family: icons;
@@ -141,11 +158,11 @@
             
 
             .channel-header .channel-thumbnail.is-online:hover::after {
-                opacity: 0.7; /* or whatever value you want */
+                opacity: 0.5; /* or whatever value you want */
             }            
 
             .loading-thumbnail .channel-thumbnail::after {
-                opacity: 0.3; /* or whatever value you want */
+                opacity: 0.25; /* or whatever value you want */
                 pointer-events: none;
             }
 
@@ -153,15 +170,11 @@
                 100% { transform: rotate(360deg); }
             }
             
-
+            /* Refresh thumbnail arrow animation*/
             .loading-thumbnail .channel-thumbnail {
                 animation: rotate360 3s linear infinite;
                 background-image: none !important;
                 pointer-events: none;
-            }
-
-            .blur-for-demo .channel-thumbnail, .blur-for-demo .js-username-title {
-                filter: blur(3px);
             }
 
             .ts-box.is-horizontal .column .ts-badge {
@@ -174,33 +187,48 @@
                 user-select: none;
                 -ms-user-select: none; 
                 -webkit-user-select: none;
-                transition: color 1s ease, background-color 2s ease;
+                /*transition: color .5s ease, background-color .5s ease;*/
                 margin-right: -6px;
             }
 
              
             .ts-box.is-horizontal .column .ts-badge:hover {
-                border: 1px solid rgba(211, 211, 211,.5);
+                border: 2px solid rgba(211, 211, 211,.5);
                 box-shadow: 0 0 20px 0px rgba(255,255,255,.1);
             } 
+
+            /*
+            .ts-box.is-horizontal .column .ts-badge:hover {
+                background-color: rgba(0,0,0,0);
+                color: #afafff;
+                border: 1px solid var(--ts-gray-400);
+            }  
+            */          
             
             /* Left align channel buttons in expanded view */ 
             .ts-grid.is-3-columns.has-top-spaced-large .column{
                 flex: none;
             }
             
-            /* Rearrange CSS hack */
+            /* Blur for screenshots */
+            .blur-for-demo .channel-thumbnail, .blur-for-demo .js-username-title {
+                filter: blur(3px);
+            }
+
+            /* Compensating for setting channel header relative position */
             [sse-swap] .ts-divider.has-top-spaced {
                 margin-top: 4.5em !important;
             }
 
+            .ts-box.is-horizontal .ts-input{
+                margin-top: 1.9em; 
+            }
 
-
-
-
-
-
-            
+            @media (prefers-color-scheme: light) {
+                .ts-badge {
+                    opacity: .75 !important;
+                }
+            }
 
         </style>
     </head>
@@ -214,7 +242,7 @@
                         <div class="ts-grid is-bottom-aligned">
                             <div class="column is-fluid">
                                 <div class="ts-header is-huge is-uppercased is-heavy has-leading-small">Chaturbate DVR</div>
-                                <div class="ts-text is-description is-bold">VERSION {{ .Config.Version }} ( lil-bandit 2025-06-23 v2 )</div>
+                                <div class="ts-text is-description is-bold">VERSION {{ .Config.Version }} / lil-bandit v0.05.5 🎈</div>
                             </div>
                             <div class="column">
                                 <button class="ts-button is-start-icon is-outlined" data-dialog="settings-dialog">

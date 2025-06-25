@@ -1,5 +1,10 @@
 package entity
 
+import (
+	"regexp"
+	"strings"
+)
+
 // Event represents the type of event for the channel.
 type Event = string
 
@@ -20,6 +25,11 @@ type ChannelConfig struct {
 	Priority    int    `json:"priority"`
 	CreatedAt   int64  `json:"created_at"`
 	//IsBlocked bool  `json:"is_blocked"` <-- It's not a "construction" or persistent property, IsBlocked is moslty for info and template
+}
+
+func (c *ChannelConfig) Sanitize() {
+	c.Username = regexp.MustCompile(`[^a-zA-Z0-9_-]`).ReplaceAllString(c.Username, "")
+	c.Username = strings.TrimSpace(c.Username)
 }
 
 // ChannelInfo represents the information about a channel,

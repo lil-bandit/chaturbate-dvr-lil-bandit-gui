@@ -41,6 +41,16 @@
         }
 
 
+        function scrollLogTextarea( el ){
+            var textarea = null
+            if( el.closest(".js-is-collapsed") ) return
+            textarea = el.tagName === "TEXTAREA" ? el : el.querySelector("textarea")
+            
+            // Only scroll if textarea is non collapsed and "Auto Log Update" is enabled
+            if( textarea && el.closest(".ts-box").querySelector("[type=checkbox]").checked ) {
+                textarea.scrollTop = textarea.scrollHeight;
+            }
+        }
 
 
         // Minimize DOM updates
@@ -59,13 +69,12 @@
                         // If the info box is collapsed, prevent the log update
                         e.preventDefault() 
                     }else {
-                        /*
-                        Moved this logic to "sseAfterMessage" Event handler
+                        
+                        
                         setTimeout(() => {
-                            let textarea = e.detail.elt.closest(".ts-box").querySelector("textarea")
-                            textarea.scrollTop = textarea.scrollHeight
-                        }, 10)
-                        */
+                            scrollLogTextarea( e.detail.elt )
+                        }, 0)
+                        
                     }
                 }
             }
@@ -105,29 +114,25 @@
         // Collapsible items
         var ClickHandler = (function(){
 
-            function onCollapsibleClick(event) {
-                let collapseClass = "js-is-collapsed"
-                const box = event.target.closest('.ts-box')
-                if (box) {
-                    if (box.classList.contains(collapseClass)) {
-                        box.classList.remove(collapseClass);
-                        var channel_id = getChannelNameFromElement(box);
-                        
-                        // Trigger a refresh of the channel info to update the log textarea
-                        setTimeout( function(){
-                            //console.log("Requesting update for: " + channel_id)
-                            fetch('/update_channel/' + channel_id, { method: 'POST' });
-                        },1);
+            
+            
+            function temporarilyDisableScrollbar(el,ms){
+                el.style.overflowY = "hidden";
+                setTimeout(function(){ el.style.overflowY = "auto";}, ms)
+            }
 
-                        let textarea = event.target.closest(".ts-box").querySelector("textarea")
-                        textarea.scrollTop = textarea.scrollHeight                        
-                    } else {
-                        box.classList.add(collapseClass);
-                    }
+            function onCollapsibleClick(event) {
+                const collapseClass = "js-is-collapsed"
+                const box = event.target.closest('.ts-box')
+                var textarea = box.querySelector("textarea");
+                let channel_id = getChannelNameFromElement(box);
+                if (box) {
+                    box.classList.toggle(collapseClass)
+                    temporarilyDisableScrollbar(textarea,650);
+                    setTimeout( function () { fetch('/update_channel/' + channel_id, { method: 'POST' }) },400); 
                 } else {
                     console.error('No parent .ts-box found for the clicked element.')
                 }
-            
                 event.stopPropagation()
             }
 
@@ -143,16 +148,9 @@
                         onCollapsibleClick(event);
                         return; // Exit early if we handled the click
                     }
-                }else if( target.classList.contains('ts-badge') ) {
-                    // Handle badge click
-                    //onBadgeClick(target);
-                    return; // Exit early if we handled the click
                 }else if( target.classList.contains('ts-image') && target.classList.contains('is-online') ) {
                     let username = getChannelNameFromElement(box);
-                    
-                    //console.log( box.querySelector(".channel-thumbnail").style.backgroundImage )
-                    //getElementFromChannelName
-                    console.log(username)
+                    //console.log(username)
                     updateChannelThumbnail( username )
                 } 
             };
@@ -281,7 +279,7 @@
         
             function sortRowsCustom() {
                 /*
-                // Optionally use this if you want to delay the animation
+                // Optionally use this if you want to delay the animation due to userinteaction ( mouse move )
                 var now = new Date().getTime();
                 if ((now - lastUserMoved) < 3000) return delayedAnim();
                 */
@@ -327,14 +325,19 @@
                 boxes.forEach(function(box) {
                     var oldPos = positions.get(box);
                     var newPos = box.getBoundingClientRect();
+                    var textarea = box.closest(".js-is-collapsed") ? null : box.querySelector("textarea");
                     var deltaX = oldPos.left - newPos.left;
                     var deltaY = oldPos.top - newPos.top;
 
-                    gsap.fromTo(
-                        box,
-                        { x: deltaX, y: deltaY },
-                        { x: 0, y: 0, duration: 0.7, ease: "power2.out" }
-                    );
+                    var dObj = { x: 0, y: 0, duration: 0.7, ease: "power2.out" }
+
+                    // Scroll non collapsed texareas
+                    if( textarea ) {
+                        dObj.onUpdate = function() {
+                            if ( textarea ) scrollLogTextarea( textarea )
+                        }
+                    }    
+                    gsap.fromTo( box, { x: deltaX, y: deltaY }, dObj);
                 });
 
                 // Update lastOrder to the new order for next time
@@ -365,6 +368,7 @@
 
             onUpdate = typeof(onUpdate) === "function" ? onUpdate : function(){};
             var channel_data = {};
+            ChannelTracker.channel_data = channel_data; // oh well..  
 
             function getChannelObj( channel_id ){
                 channel_data[channel_id] = channel_data[channel_id] || {
@@ -393,11 +397,8 @@
                 }else if( sseInfo.log_type === "log" ){
                     ch.lastLogUpdate = now;
                 }
+                scrollLogTextarea( e.detail.elt )
 
-               if( !e.detail.elt.closest(".js-is-collapsed") ) {
-                    let textarea = e.detail.elt.closest(".ts-box").querySelector("textarea")
-                    textarea.scrollTop = textarea.scrollHeight;
-               }
             }
 
             function healthCheck(){
@@ -422,7 +423,6 @@
             }
 
             document.body.addEventListener('htmx:afterSwap', inspectEvent);
-            
             setInterval(healthCheck, 10000); // Check every 10 seconds
         }
 
@@ -549,7 +549,13 @@
             if( cbdvr.debug ) console.log("Channel Status Updated: " + channel + " ["+status+"]")
         })
 
-
+        function getChannelsCVS(){
+            getChannels(function(data){
+                var names = data.map(function(ch) { return ch.Username; }).join(',');
+                console.log(names)
+            })
+        }
+        
         //Global/public object for the app
 
         window.cbdvr = (function(){
@@ -561,6 +567,7 @@
                 debug: false,
                 blurForDemo: blurForDemo,
                 getChannels: getChannels,
+                getChannelsCVS: getChannelsCVS,
                 getChannel: getChannel,
                 resumeChannel: resumeChannel,
                 pauseChannel: pauseChannel,
