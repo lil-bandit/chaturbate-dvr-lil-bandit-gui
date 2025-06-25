@@ -151,10 +151,8 @@
                 } 
             };
 
-            // Instead of click (more responsive with SSE DOM updates, clicks are not lost)
-            document.body.addEventListener('pointerdown', (e) => {
-                if (e.pointerType === 'touch' || e.pointerType === 'mouse') handler(e);
-            }); 
+            
+            document.body.addEventListener('click', handler); 
 
         })()
 
@@ -393,8 +391,7 @@
                 }else if( sseInfo.log_type === "log" ){
                     ch.lastLogUpdate = now;
                 }
-                scrollLogTextarea( e.detail.elt )
-
+                scrollLogTextarea( e.detail.elt ) // both info and log can post to the textarea
             }
 
             function healthCheck(){

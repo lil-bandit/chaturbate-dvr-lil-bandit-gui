@@ -32,6 +32,19 @@
             } 
             
             /* COLLAPSE CSS */
+            .ts-box.is-horizontal .is-3-columns {
+                position: absolute; 
+                bottom: 1em;                
+                transition: opacity .4s linear, bottom .4s linear;
+                opacity:1;
+            }    
+            
+            .ts-box.is-horizontal.js-is-collapsed .is-3-columns {
+                bottom:-200px;
+                opacity:0;
+            }
+
+        
 
             .ts-box.is-horizontal.js-is-collapsed > div > :not(:first-child), .ts-box.is-horizontal.js-is-collapsed textarea { 
                 opacity: 0;
@@ -47,8 +60,8 @@
             }
 
             .ts-box.is-horizontal > div  { 
-                transition: height .6s ease-in-out;
-                height: 415px;
+                transition: height .4s ease-in-out;
+                height: 440px;
             }  
 
             /* Hack */
