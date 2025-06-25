@@ -404,6 +404,7 @@ func (m *Manager) DownloadChannelImage(username string, force ...bool) error {
 	}
 	resp, err := http.Get(url)
 	if err != nil {
+		fmt.Printf("HTTP GET error: %v\n", err)
 		return err
 	}
 	defer resp.Body.Close()
