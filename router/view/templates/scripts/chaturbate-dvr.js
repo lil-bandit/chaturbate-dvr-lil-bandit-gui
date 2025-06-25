@@ -478,8 +478,15 @@
             });                
         }       
 
-        function confirmChannelDeletion (channel_id) {
-            console.log(channel_id)
+        
+        function confirmChannelDeletion (channel_id, event ) {
+            // Dirty fix
+            var now = new Date().getTime()
+            var elapsed = now-(confirmChannelDeletion.lastCall || 0 ) 
+            if( elapsed < 200 ) return 
+            confirmChannelDeletion.lastCall = now;
+            
+            //console.log(channel_id)
             var modal = document.getElementById('delete-confirm');
             if(!modal) return console.error("No delete-confirm modal found in the document.");
           
