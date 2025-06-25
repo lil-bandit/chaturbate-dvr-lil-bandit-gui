@@ -53,28 +53,24 @@
         }
 
 
-        // Minimize DOM updates
+        
 
         document.body.addEventListener("htmx:sseBeforeMessage", function (e) {
    
             var sseInfo = sseParseEvent(e);
                            
             if ( sseInfo.log_type === "log" ) {
-                // Only filter "log"
+                // // Minimize DOM updates - only filter "log"
                 if ( !e.detail.elt.closest(".ts-box").querySelector("[type=checkbox]").checked ) {
                     e.preventDefault();
                 }else {
-                   
                     if ( e.detail.elt.closest(".js-is-collapsed") ) {
                         // If the info box is collapsed, prevent the log update
                         e.preventDefault() 
                     }else {
-                        
-                        
                         setTimeout(() => {
                             scrollLogTextarea( e.detail.elt )
                         }, 0)
-                        
                     }
                 }
             }
@@ -452,16 +448,10 @@
         function updateChannelThumbnail(channel_id, onData){
             fetch( '/update_thumbnail/' + channel_id, { method: 'POST' }).then(function(response) {
                 if (response.ok) {
-                    console.log("channel_id: " + channel_id)
-                    
+                    // console.log("channel_id: " + channel_id)
                     var elm = getElementFromChannelName(channel_id)
                     elm.parentElement.classList.add("loading-thumbnail")
-                    //elm.querySelector('.channel-thumbnail').style.backgroundImage = "url('./channel-images/" + channel_id + ".jpg?"+ new Date().getTime() +"'), url('static/default_user.png')";
-                    
-
-                     setTimeout(function(){
-                        window.location.reload(true);
-                     },3000)
+                    setTimeout(function(){ window.location.reload(true); },3000);
                 } else {
                     console.error("Failed to pause channel:", channel_id);
                 }
@@ -549,10 +539,10 @@
             if( cbdvr.debug ) console.log("Channel Status Updated: " + channel + " ["+status+"]")
         })
 
-        function getChannelsCVS(){
+        function getChannelsCSV(){
             getChannels(function(data){
                 var names = data.map(function(ch) { return ch.Username; }).join(',');
-                console.log(names)
+                console.log( names )
             })
         }
         
@@ -567,7 +557,7 @@
                 debug: false,
                 blurForDemo: blurForDemo,
                 getChannels: getChannels,
-                getChannelsCVS: getChannelsCVS,
+                getChannelsCSV: getChannelsCSV,
                 getChannel: getChannel,
                 resumeChannel: resumeChannel,
                 pauseChannel: pauseChannel,
