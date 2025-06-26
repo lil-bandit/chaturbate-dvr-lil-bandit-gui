@@ -132,8 +132,9 @@ func (ch *Channel) DownPrioritize() {
 	ch.IsOnline = false
 
 	time_delay := time.Duration(server.Config.Interval) * time.Minute
-	ch.Info("Downprioritized [%s]", ch.Config.Username)
 	ch.Update()
+	ch.Info("Downprioritized [%s]", ch.Config.Username)
+
 	<-time.After(time_delay) // Wait for the interval before starting the monitoring again
 
 	// Resume the channel monitoring after the delay

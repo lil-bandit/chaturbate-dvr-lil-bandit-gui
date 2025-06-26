@@ -21,81 +21,74 @@
         <style>
             
 
+
+
             .ts-app-layout > .is-scrollable {
                 /* Force visible scrollbar, so expanding seems less jerky */
                 overflow-y: scroll !important;
             }
 
+            .js-username-title {
+                opacity: .7; 
+                transition: opacity .1s linear;
+            } 
             .js-username-title:hover {
-                /*color: #FFF; oops forgot about light mode*/  
-                display: "";
+                opacity: 1; 
             } 
             
-            /* COLLAPSE CSS */
-            .ts-box.is-horizontal .is-3-columns {
-                position: absolute; 
-                bottom: 1em;                
-                transition: opacity .4s linear, bottom .4s linear;
-                opacity:1;
-            }    
-            
-            .ts-box.is-horizontal.js-is-collapsed .is-3-columns {
-                bottom:-200px;
-                opacity:0;
+            .sse-content {
+                transition: height .4s ease-in-out , opacity .4s linear;
+                height: 370px;
             }
 
-        
-
-            .ts-box.is-horizontal.js-is-collapsed > div > :not(:first-child), .ts-box.is-horizontal.js-is-collapsed textarea { 
-                opacity: 0;
-            }  
-
-            .ts-box.is-horizontal > div > div, .ts-box.is-horizontal textarea { 
-                transition: opacity .6s linear;
-                opacity: 1;
-            }  
-            
-            .ts-box.is-horizontal.js-is-collapsed > div  { 
+            .js-is-collapsed .sse-content {
                 height: 0px;
+                opacity: 0;
             }
 
-            .ts-box.is-horizontal > div  { 
-                transition: height .4s ease-in-out;
-                height: 440px;
-            }  
-
-            /* Hack */
+           .channel-menu {
+                display: flex;
+                align-items: center; /* vertically centers content */
+                justify-content: center; /* optional: horizontally center too */
+                line-height: normal; /* reset any inherited button styles */
+            }
+            .channel-box  {
+                transition: opacity .2s linear;
+                opacity: 1;
+            }
+            .channel-box.js-is-collapsed {
+                opacity: .78;
+               
+            }
+            .channel-box:hover {
+                opacity: 1;
+            }
             .channel-header {
-                position: absolute;
-                width: calc(100% - 3.5em);
-                gap: .7em;
-            }
-            
-            .channel-header .ts-header {
                 cursor: pointer;
                 user-select: none;
                 -webkit-user-select: none;
                 -ms-user-select: none; 
-                padding: .7em 0; 
+                             
             }
 
-
-            .channel-header .channel-menu-item {
+            .channel-menu-item {
                 margin-left: 1em;
                 cursor: pointer;
                 font-size: .88em !important;
-                opacity: .3;
-                display: inline-block;
+                opacity: .4;
                 border: 1px solid var(--ts-gray-400);
                 border-radius: 40px;
                 text-align: center;
                 width: 2.3rem;
                 height: 2.3rem;
+                display: flex;
+                justify-content: center;
+                align-items: center;                
             }
 
 
 
-            .channel-header .channel-menu-item:hover {
+            .channel-menu-item:hover {
                 color: #afafff;
                 opacity: 1;
                 border: 2px solid var(--ts-gray-400);
@@ -116,8 +109,8 @@
                 
             }
             
-            .channel-header .channel-thumbnail {
-                left:-4px;               
+            .channel-header .channel-thumbnail { 
+                left:-4px;
             }
 
             .channel-header .channel-thumbnail.is-online {
@@ -140,24 +133,20 @@
                 opacity: 0;
                 pointer-events: none;
                 border-radius: 50%;
-                width: 100%;
-                height: 100%;
+                width: 100%; height: 100%;
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                font-size: 2em; /* Adjust as needed */
-                color: #fff;    /* Adjust as needed */
+                font-size: 2em; 
+                color: #fff;    
             }
             
 
             .channel-header .channel-thumbnail.is-online:hover::after {
-                opacity: 0.5; /* or whatever value you want */
+                opacity: 0.5; 
             }            
 
-            .loading-thumbnail .channel-thumbnail::after {
-                opacity: 0.25; /* or whatever value you want */
-                pointer-events: none;
-            }
+
 
             @keyframes rotate360 {
                 100% { transform: rotate(360deg); }
@@ -165,12 +154,12 @@
             
             /* Refresh thumbnail arrow animation*/
             .loading-thumbnail .channel-thumbnail {
-                animation: rotate360 3s linear infinite;
+                animation: rotate360 6s linear infinite;
                 background-image: none !important;
                 pointer-events: none;
             }
 
-            .ts-box.is-horizontal .column .ts-badge {
+            .ts-badge.ch-status {
                 padding: .7em .7em;
                 padding-left: .8em;
                 min-width: 8.8em;
@@ -180,10 +169,15 @@
                 user-select: none;
                 -ms-user-select: none; 
                 -webkit-user-select: none;
-                /*transition: color .5s ease, background-color .5s ease;*/
-                margin-right: -6px;
+                transition: color .33s ease, background-color .33s linear;
+
             }
 
+
+            .loading-thumbnail .channel-thumbnail::after {
+                opacity: 0.25; 
+                pointer-events: none;
+            }
              
             .ts-box.is-horizontal .column .ts-badge:hover {
                 border: 2px solid rgba(211, 211, 211,.5);
@@ -208,25 +202,74 @@
                 filter: blur(3px);
             }
 
-            /* Compensating for setting channel header relative position */
-            [sse-swap] .ts-divider.has-top-spaced {
-                margin-top: 4.5em !important;
+
+
+
+
+            .ts-badge.ch-status {
+                background-color: var(--ts-gray-200);
+                color: var(--accent-color, var(--ts-gray-800));
             }
 
-            .ts-box.is-horizontal .ts-input{
-                margin-top: 1.9em; 
-            }
+            .ts-badge.ch-status.offline     { background-color: var(--ts-gray-200);}
+            .ts-badge.ch-status.paused      { background-color: rgb(134, 63, 63);}
+            .ts-badge.ch-status.blocked     { background-color: #736840;}
+            .ts-badge.ch-status.queued      { background-color: rgb(65, 82, 104)}               
+            .ts-badge.ch-status.recording   { background-color: rgb(65, 103, 87)}  
 
             @media (prefers-color-scheme: light) {
-                .ts-badge {
-                    opacity: .75 !important;
-                }
+                .ts-badge.ch-status.offline     { background-color: var(--ts-gray-200);}
+                .ts-badge.ch-status.paused      { background-color: rgb(222, 187, 187);}
+                .ts-badge.ch-status.blocked     { background-color: #e3dbc1;}
+                .ts-badge.ch-status.queued      { background-color: rgb(184, 202, 224)}
+                .ts-badge.ch-status.recording   { background-color: rgb(200 230 218);} 
             }
 
+
+            #log-window {
+                width: 300px;
+                height: 200px;
+                background: #222;
+                padding: 10px;
+                position: absolute;
+                top: 100px;
+                left: 100px;
+                
+                font-family: monospace;
+                border: 2px solid rgb(94, 105, 94);
+                z-index: 9999;
+                display: none;
+                resize: both;
+                overflow: auto;                
+            }
+
+            #log-window .ts-app-topbar {
+                cursor: move;
+            }
+            
+            #js-debug { 
+                position: absolute;
+                top:0; left:0;
+            }
+            #js-debug div{
+                font-weight: bold;
+                display: inline-block;
+                padding:.2em;
+            }
+            #dev-menu {
+                top:0; right:.6em;
+                z-index: 99;
+            }
+            .debug #log-window { 
+                display:block;
+            }
+                        
         </style>
     </head>
 
     <body hx-ext="sse">
+
+
         <div class="ts-app-layout is-fullscreen is-vertical">
             <!-- Fixed Header -->
             <div class="cell" style="padding:40px 0px">
@@ -235,20 +278,42 @@
                         <div class="ts-grid is-bottom-aligned">
                             <div class="column is-fluid">
                                 <div class="ts-header is-huge is-uppercased is-heavy has-leading-small">Chaturbate DVR</div>
-                                <div class="ts-text is-description is-bold">VERSION {{ .Config.Version }} / lil-bandit v0.05.5 🎈</div>
+                                <div class="ts-text is-description is-bold">VERSION {{ .Config.Version }} / lil-bandit v0.06.1 🎈</div>
+                                
                             </div>
+
+                            <div class="column" style="display:none">
+                                <div id="dev-menu ">
+                                    <div class="is-pilled ts-button is-outlined" style="min-width:40px">
+                                        <button class="item" data-dropdown="dropdown-links">
+                                            <span class="ts-icon is-ellipsis-icon"></span>
+                                        </button>
+                                    </div>
+                                                                
+                                    <div class="ts-dropdown" id="dropdown-links">
+                                        <button class="menu-export-as-csv item">Export channelnames as CSV</button>
+                                        <button class="menu-enable-debug item">Enable debug</button>
+                                    </div> 
+                                </div>
+                            </div>
+
                             <div class="column">
                                 <button class="ts-button is-start-icon is-outlined" data-dialog="settings-dialog">
                                     <span class="ts-icon is-gear-icon"></span>
                                     Settings
                                 </button>
                             </div>
+
                             <div class="column">
                                 <button class="ts-button is-start-icon" data-dialog="create-dialog">
                                     <span class="ts-icon is-plus-icon"></span>
                                     Add Channel
                                 </button>
                             </div>
+                            
+
+  
+
                         </div>
                     </div>
                 </div>
@@ -279,27 +344,72 @@
                     <!-- Channels -->
                     <div class="ts-wrap is-vertical has-top-spaced-large" sse-connect="/updates?stream=updates">
                         {{ range .Channels }}
-                        <div class="ts-box is-horizontal js-is-collapsed">
-                            <!-- Info Section -->
-                            <div sse-swap="{{ .Username }}-info" class="ts-content has-break-all" style="width: 400px; line-height: 1.45; padding-right: 0; padding-left: 1.5em">
-                                {{ template "channel_info" . }}
-                            </div>
-                            <!-- / Info Section -->
+                        
+                        <div class="ts-box is-horizontal js-is-collapsed channel-box {{.Username}}" channel-id="{{.Username}}">
+                            <div class="ts-content is-middle-aligned " style="flex:1">
+                                
+                                <!-- Channel Header Section -->
+                                <div class="ts-grid is-middle-aligned has-horizontally-padded channel-header">
+                                    <div class="ts-image is-circular channel-thumbnail {{ if .IsOnline }}is-online{{ end }}" title="Click to update thumbnail, channel needs to be online ( CTRL+SHIFT+R to clear image cache )" style="background-image: url('./channel-images/{{.Username}}.jpg'), url('static/default_user.png');"></div> 
+                                    <div class="column is-fluid">
+                                        <div class="ts-header js-username-title">{{ .Username }}</div>
+                                    </div>
+                                    <!-- channel-menu --> 
+                                    <div class="channel-menu column">
+                                        <div title="Open channel in browser" class="channel-menu-item ts-icon btn-openweb">&#xf35d;</div>
+                                        <div title="Edit channel" class="channel-menu-item ts-icon is-gear-icon btn-edit"></div>
+                                        <div title="Delete channel"  class="channel-menu-item ts-icon is-trash-icon btn-delete"></div>
+                                    </div>
+                                        
+                                    <div class="column">
+                                        {{ if .IsPaused }}
+                                            <span class="ts-badge is-negative is-small is-start-spaced ch-status paused" title="Click to resume channel">PAUSED</span>
+                                        {{ else if .IsBlocked }}
+                                            <span class="ts-badge is-secondary is-small is-start-spaced ch-status blocked" title="Click to pause channel">BLOCKED</span>
+                                        {{ else if .IsDownPrioritized }}
+                                            <span class="ts-badge is-secondary is-small is-start-spaced ch-status queued" title="Click to pause channel">QUEUED</span> 
+                                        {{ else if .IsOnline }}
+                                            <span class="ts-badge is-small is-negative is-start-spaced ch-status recording" title="Click to pause channel">RECORDING</span>
+                                        {{ else }}            
+                                            <span class="ts-badge is-secondary is-small is-start-spaced ch-status offline" title="Click to pause channel">OFFLINE</span>
+                                        {{ end }}
+                                    </div>
+                                </div>
+                                <!-- / Channel Header Section -->
+                                
+                                <!-- SSE content -->
+                                <div style="display: flex;" class="sse-content">
+                                    
+                                    <!-- Info Section -->
+                                    <div>
+                                        <div sse-swap="{{ .Username }}-info" class="ts-content has-break-all" style="width: 400px; line-height: 1.45; padding-right: 0">
+                                        {{ template "channel_info" . }}
+                                        </div> 
+                                    </div>
+                                    <!-- / Info Section -->
 
-                            <!-- Log Section -->
-                            <div class="ts-content is-padded" style="flex: 1;gap: 0.8rem; display: flex; flex-direction: column; margin-top: 2.3rem; font-size: 12px;">
-                                <div class="ts-input" style="flex: 1">
-                                    <textarea class="has-full-height" readonly sse-swap="{{ .Username }}-log" style="font-size: 1em; scrollbar-width: thin">{{ range .Logs }}{{ . }}&NewLine;{{ end }}</textarea>
+                                    <!-- Log Section -->
+                                    <div style="flex: 1; display: flex;">
+                                        <div class="ts-content" style="margin-left:10px; flex: 1;gap: 0.8rem; display: flex; flex-direction: column;  font-size: 12px;">
+                                            <div class="ts-input" style="flex:1" >
+                                                <textarea class="has-full-height" readonly sse-swap="{{ .Username }}-log" style="font-size: 1em; scrollbar-width: thin">{{ range .Logs }}{{ . }}&NewLine;{{ end }}</textarea>
+                                            </div>
+                                            <div>
+                                                <label class="ts-switch is-small" style="display: flex">
+                                                    <input type="checkbox" checked />
+                                                    Auto-Update & Scroll Logs
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <!-- / Log Section -->
+
                                 </div>
-                                <div>
-                                    <label class="ts-switch is-small" style="display: flex">
-                                        <input type="checkbox" checked />
-                                        Auto-Update & Scroll Logs
-                                    </label>
-                                </div>
+                                <!-- / SSE content -->
+
                             </div>
-                            <!-- / Log Section -->
                         </div>
+                        
                         {{ end }}
                     </div>
                     <!-- / Channels -->
@@ -592,6 +702,42 @@
                 </div>
             </div>
         </dialog>
+
+
+
+
+        <div id="log-window" class="ts-modal" style="--width: 480px position: absolute;">
+            <div class="ts-app-topbar">
+                <div class="start">
+                    <div class="item is-text">PDF Viewer</div>
+                </div>
+                <div class="end">
+                    <button class="item">
+                        <span class="ts-icon is-circle-question-icon"></span>
+                    </button>
+                </div>
+            </div>            
+            <div class="content">
+                <div style="margin:.7em" class="ts-wrap is-end-aligned">
+                    <button type="reset" class="ts-close is-rounded is-large is-secondary" data-dialog="log-window"></button>
+                </div>                
+                <div class="log-window-content ts-content is-center-aligned is-padded">
+                     
+            <div id="js-debug">
+                <div>DOM Updates Allowed:</div> <div id="sse-passed" style="color:rgb(67, 127, 67)"></div><div>DOM Updates Blocked:</div><div id="sse-skipped" style="color:rgb(168, 88, 88)"></div> 
+            </div> 
+
+                </div>
+                <div class="ts-divider"></div>
+                <div class="ts-content is-tertiary">
+                    <div class="ts-wrap is-2-columns is-center-aligned">
+                    <button class="ts-button  is-outlined is-secondary" type="reset"  data-dialog="log-window">Cancel</button>
+                    <button class="btn-ok ts-button is-primary">OK</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <script>
  
 

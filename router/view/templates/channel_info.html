@@ -1,38 +1,10 @@
 {{ define "channel_info" }}
 
-<!-- Header -->
-<div class="ts-grid is-middle-aligned channel-header">
-   <div class="ts-image is-circular channel-thumbnail {{ if .IsOnline }}is-online{{ end }}" title="Click to update thumbnail, channel needs to be online ( CTRL+SHIFT+R to clear image cache )" style="background-image: url('./channel-images/{{.Username}}.jpg'), url('static/default_user.png');"></div> 
-    <div class="column is-fluid">
-         <div class="ts-header js-username-title">{{ .Username }}</div>
-    </div>
-    <div class="channel-menu column">
-        <button title="Open channel in browser" onpointerdown="window.open('{{ .GlobalConfig.Domain }}{{.Username }}','_blank')" class="channel-menu-item ts-icon">&#xf35d;</button>
-        <button title="Edit channel" onpointerdown="cbdvr.editChannel('{{.Username }}', event)" class="channel-menu-item ts-icon is-gear-icon"></button>
-        <button title="Delete channel" onpointerdown="cbdvr.confirmChannelDeletion('{{.Username}}',event)" class="channel-menu-item ts-icon is-trash-icon"></button>
-        
-        <!--
-        <form action="/stop_channel/{{ .Username }}" method="POST" onsubmit="return confirm('Are you sure you want to delete `{{ .Username }}` channel?')">
-            <button title="Delete channel" class="channel-menu-item ts-icon is-trash-icon"></button>
-        </form> -->
-    </div>    
-    <div class="column">
-        {{ if .IsPaused }}
-            <span onpointerdown="cbdvr.resumeChannel('{{.Username }}')" class="ts-badge is-negative is-small is-start-spaced" title="Click to resume channel" style="background-color: rgb(134, 63, 63);">PAUSED</span>
-        {{ else if .IsBlocked }}
-            <span onpointerdown="cbdvr.pauseChannel('{{.Username }}')"class="ts-badge is-secondary is-small is-start-spaced" title="Click to pause channel" style="background-color: #736840;">BLOCKED</span>
-        {{ else if .IsDownPrioritized }}
-            <span onpointerdown="cbdvr.pauseChannel('{{.Username }}')" class="ts-badge is-secondary is-small is-start-spaced" title="Click to pause channel" style="background-color: rgb(65, 82, 104);">QUEUED</span> 
-        {{ else if .IsOnline }}
-            <span onpointerdown="cbdvr.pauseChannel('{{.Username }}')" class="ts-badge is-small is-negative is-start-spaced" title="Click to pause channel" style="background-color: rgb(65, 103, 87);">RECORDING</span>
-        {{ else }}            
-            <span onpointerdown="cbdvr.pauseChannel('{{.Username }}')" class="ts-badge is-secondary is-small is-start-spaced" title="Click to pause channel" >OFFLINE</span>
-        {{ end }}
-    </div>
-</div>
-<!-- / Header -->
+<span class="js-status-text-hook" style="display:none;">
+    {{ if .IsPaused }}PAUSED{{ else if .IsBlocked }}BLOCKED{{ else if .IsDownPrioritized }}QUEUED{{ else if .IsOnline }}RECORDING{{ else }}OFFLINE{{ end }}
+</span>
 
-<div class="ts-divider has-top-spaced"></div>
+<div class="ts-divider"></div>
 
 <!-- Info: Channel URL -->
 <div class="ts-grid has-top-spaced">
