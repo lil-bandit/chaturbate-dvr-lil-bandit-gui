@@ -35,7 +35,7 @@
             
             /* Not collapsed*/
             .sse-content {
-                transition: height .4s ease-in-out , opacity .4s linear;
+                transition: height .6s ease-in-out , opacity .6s linear;
                 height: 370px;
             }
 
@@ -120,10 +120,19 @@
             
             .channel-header .channel-thumbnail { 
                 left:-4px;
+                transition: filter 1s linear, opacity 0.3s linear;
+                filter: brightness(70%)  grayscale(70%);
+                opacity: .7;
             }
 
-            .channel-header .channel-thumbnail.is-online {
-                opacity: 1;              
+            .channel-box:hover .channel-thumbnail {
+                opacity: 1; 
+                filter: grayscale(0%);  
+            }              
+
+            .ch-status-recording .channel-thumbnail , .ch-status-queued .channel-thumbnail {
+                opacity: 1;     
+                filter: grayscale(0%);         
             }
 
             #delete-confirm .channel-thumbnail {
@@ -131,7 +140,6 @@
                 height: 100px;           
             }
 
-            
             /* Refresh thumbnail arrow */
             .channel-header .channel-thumbnail::after {
                 content: "\f2f1";
@@ -149,13 +157,13 @@
                 font-size: 2em; 
                 color: #fff;    
             }
+          
             
-
-            .channel-header .channel-thumbnail.is-online:hover::after {
+ 
+            .ch-status-recording .channel-thumbnail:hover::after , .ch-status-queued .channel-thumbnail:hover::after {
                 opacity: 0.5; 
             }            
-
-
+            
 
             @keyframes rotate360 {
                 100% { transform: rotate(360deg); }
@@ -163,13 +171,13 @@
             
             /* Refresh thumbnail arrow animation*/
             .loading-thumbnail .channel-thumbnail {
-                animation: rotate360 6s linear infinite;
-                background-image: none !important;
+                /* background-image: none !important; */
                 pointer-events: none;
             }
 
             .loading-thumbnail .channel-thumbnail::after {
-                opacity: 0.25; 
+                animation: rotate360 6s linear infinite;
+                opacity: 0.35; 
                 pointer-events: none;
             } 
 
@@ -214,18 +222,84 @@
                 color: var(--accent-color, var(--ts-gray-800));
             }
 
-            .ts-badge.ch-status.offline     { background-color: var(--ts-gray-200);}
-            .ts-badge.ch-status.paused      { background-color: rgb(134, 63, 63);}
-            .ts-badge.ch-status.blocked     { background-color: #736840;}
-            .ts-badge.ch-status.queued      { background-color: rgb(65, 82, 104)}               
-            .ts-badge.ch-status.recording   { background-color: rgb(65, 103, 87)}  
+            .mini-badges{
+                gap: 0.4em;
+                transition: opacity 1s linear;
+                opacity: 0;
+                
+            } 
+            .mini-badges > * {
+                width: 21px;
+                height: 21px;
+                opacity: .7;
+            }
+           .mini-badges > div {
+                border-radius: 25px;
+                text-align: center;
+                border: 1px solid;
+                line-height: 2;
+                font-size: 0.6em;
+                letter-spacing: .1em;
+                padding-left: 0.1em;
+                transition: opacity .1s linear;  
+           }
+
+            .mini-badges .mini-badge-blocked {
+                background-color: hsl(47, 28%, 35%);
+                color: #fff;
+            }
+            .mini-badges .mini-badge-paused {
+                background-color: rgb(134, 63, 63);
+                color: #fff;
+            }
+            .mini-badges .mini-badge-offline {
+                background-color: var(--ts-gray-200);
+                color: var(--ts-gray-800);
+            }
+            .mini-badges .mini-badge-queued {
+                background-color: rgb(65, 82, 104);
+                color: #fff;
+            }
+            .mini-badges .mini-badge-recording {
+                background-color: rgb(65, 103, 87);
+                color: #fff;
+            }
 
             @media (prefers-color-scheme: light) {
-                .ts-badge.ch-status.offline     { background-color: var(--ts-gray-200);}
-                .ts-badge.ch-status.paused      { background-color: rgb(222, 187, 187);}
-                .ts-badge.ch-status.blocked     { background-color: #e3dbc1;}
-                .ts-badge.ch-status.queued      { background-color: rgb(184, 202, 224)}
-                .ts-badge.ch-status.recording   { background-color: rgb(200 230 218);} 
+                .mini-badge-blocked {
+                    background-color: #e3dbc1;
+                    color: #736840;
+                }
+                .mini-badge-paused {
+                    background-color: rgb(222, 187, 187);
+                    color: rgb(134, 63, 63);
+                }
+                .mini-badge-offline {
+                    background-color: var(--ts-gray-200);
+                    color: var(--ts-gray-800);
+                }
+                .mini-badge-queued {
+                    background-color: rgb(184, 202, 224);
+                    color: rgb(65, 82, 104);
+                }
+                .mini-badge-recording {
+                    background-color: rgb(200, 230, 218);
+                    color: rgb(65, 103, 87);
+                }
+            }
+
+            .ch-status-offline .ts-badge.ch-status     { background-color: var(--ts-gray-200);}
+            .ch-status-paused .ts-badge.ch-status      { background-color: rgb(134, 63, 63);}
+            .ch-status-blocked .ts-badge.ch-status     { background-color: #736840;}
+            .ch-status-queued .ts-badge.ch-status      { background-color: rgb(65, 82, 104);}               
+            .ch-status-recording .ts-badge.ch-status   { background-color: rgb(65, 103, 87);}
+
+            @media (prefers-color-scheme: light) {
+                .ch-status-offline .ts-badge.ch-status     { background-color: var(--ts-gray-200);}
+                .ch-status-paused .ts-badge.ch-status      { background-color: rgb(222, 187, 187);}
+                .ch-status-blocked .ts-badge.ch-status     { background-color: #e3dbc1;}
+                .ch-status-queued .ts-badge.ch-status      { background-color: rgb(184, 202, 224);}
+                .ch-status-recording .ts-badge.ch-status   { background-color: rgb(200, 230, 218);}
             }
 
             /* Blur for screenshots */
@@ -283,11 +357,19 @@
             <div class="cell" style="padding:40px 0px">
                 <div class="ts-bar is-horizontal is-dense is-fixed">
                     <div class="ts-container" style="padding: 0 2em 0 1em; --width: 990px">
+
                         <div class="ts-grid is-bottom-aligned">
                             <div class="column is-fluid">
                                 <div class="ts-header is-huge is-uppercased is-heavy has-leading-small">Chaturbate DVR</div>
-                                <div class="ts-text is-description is-bold">VERSION {{ .Config.Version }} / lil-bandit v0.06.2 🎈</div>
-                                
+                                <div class="ts-text is-description is-bold">VERSION {{ .Config.Version }} / lil-bandit v0.07.1 🎈</div>
+                                <div class="ts-grid is-bottom-aligned has-top-spaced-small mini-badges">
+                                    <div class="column mini-badge-paused"       style="display: none;">12</div>
+                                    <div class="column mini-badge-offline"      style="display: none;">5</div>
+                                    <div class="column mini-badge-queued"       style="display: none;">32</div>
+                                    <div class="column mini-badge-recording"    style="display: none;">32</div>
+                                    <div class="column mini-badge-blocked"      style="display: none;">32</div>
+                                    <span class="column is-fluid"></span>
+                                </div>                                
                             </div>
 
                             <div class="column" style="display:none">
@@ -350,12 +432,12 @@
                     <div class="ts-wrap is-vertical has-top-spaced-large" sse-connect="/updates?stream=updates">
                         {{ range .Channels }}
                         
-                        <div class="ts-box is-horizontal js-is-collapsed channel-box {{.Username}}" channel-id="{{.Username}}">
+                        <div class="ts-box is-horizontal js-is-collapsed channel-box {{.Username}} ch-status-{{ if .IsPaused }}paused{{ else if .IsBlocked }}blocked{{ else if .IsDownPrioritized }}queued{{ else if .IsOnline }}recording{{ else }}offline{{ end }}" channel-id="{{.Username}}">
                             <div class="ts-content is-middle-aligned " style="flex:1">
                                 
                                 <!-- Channel Header Section -->
                                 <div class="ts-grid is-middle-aligned has-horizontally-padded channel-header">
-                                    <div class="ts-image is-circular channel-thumbnail {{ if .IsOnline }}is-online{{ end }}" title="Click to update thumbnail, channel needs to be online ( CTRL+SHIFT+R to clear image cache )" style="background-image: url('./channel-images/{{.Username}}.jpg'), url('static/default_user.png');"></div> 
+                                    <div class="ts-image is-circular channel-thumbnail" title="Click to update thumbnail, channel needs to be online ( CTRL+SHIFT+R to clear image cache )" style="background-image: url('./channel-images/{{.Username}}.jpg'), url('static/default_user.png');"></div> 
                                     <div class="column is-fluid">
                                         <div class="ts-header js-username-title">{{ .Username }}</div>
                                     </div>
@@ -368,15 +450,15 @@
                                     <!-- / channel-menu -->     
                                     <div class="column">
                                         {{ if .IsPaused }}
-                                            <span class="ts-badge is-negative is-small is-start-spaced ch-status paused" title="Click to resume channel">PAUSED</span>
+                                            <span class="ts-badge is-negative is-small is-start-spaced ch-status" title="Click to resume channel">PAUSED</span>
                                         {{ else if .IsBlocked }}
-                                            <span class="ts-badge is-secondary is-small is-start-spaced ch-status blocked" title="Click to pause channel">BLOCKED</span>
+                                            <span class="ts-badge is-secondary is-small is-start-spaced ch-status" title="Click to pause channel">BLOCKED</span>
                                         {{ else if .IsDownPrioritized }}
-                                            <span class="ts-badge is-secondary is-small is-start-spaced ch-status queued" title="Click to pause channel">QUEUED</span> 
+                                            <span class="ts-badge is-secondary is-small is-start-spaced ch-status" title="Click to pause channel">QUEUED</span> 
                                         {{ else if .IsOnline }}
-                                            <span class="ts-badge is-small is-negative is-start-spaced ch-status recording" title="Click to pause channel">RECORDING</span>
+                                            <span class="ts-badge is-small is-negative is-start-spaced ch-status" title="Click to pause channel">RECORDING</span>
                                         {{ else }}            
-                                            <span class="ts-badge is-secondary is-small is-start-spaced ch-status offline" title="Click to pause channel">OFFLINE</span>
+                                            <span class="ts-badge is-secondary is-small is-start-spaced ch-status" title="Click to pause channel">OFFLINE</span>
                                         {{ end }}
                                     </div>
                                 </div>

@@ -1,8 +1,13 @@
 (function(){
 
-    
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("debug")) {
+        var cbdvr_debug = true;
+        console.log("Debug mode active!");
+    }
+
     document.addEventListener("DOMContentLoaded", Main, false);
-    
+
     
     function Main(){
         //console.log("Chaturbate DVR Script Loaded")
@@ -18,10 +23,6 @@
         })
           
         
-
-
-
-
 
         // ▀█▀ ░█▄─░█ ░█▀▀█ ░█─░█ ▀▀█▀▀ 　 ░█▀▀▀ ▀█▀ ░█─── ▀▀█▀▀ ░█▀▀▀ ░█▀▀█ 
         // ░█─ ░█░█░█ ░█▄▄█ ░█─░█ ─░█── 　 ░█▀▀▀ ░█─ ░█─── ─░█── ░█▀▀▀ ░█▄▄▀ 
@@ -44,7 +45,7 @@
             }
             // Otherwise, leave as-is (for comma-separated IDs)
         });
-
+        // ================================================================================================
 
 
 
@@ -62,7 +63,10 @@
             var lastUserMoved = 0;
             var lastAnimationTs = new Date().getTime();
             var timeout_reference;
-            
+            var isAnimating = false;
+
+            const ANIMATION_TIME_MS = 2000;
+
             // Helper to compare two arrays element by element
             function arraysAreEqual(arr1, arr2) {
                 if (!arr1 || !arr2 || arr1.length !== arr2.length) return false;
@@ -72,12 +76,11 @@
                 return true;
             }
 
-            function delayedAnim() {
-                clearTimeout(timeout_reference);
-                timeout_reference = setTimeout(sortRowsCustom, 500);
-            }
 
-            function getStatusPriority(el) {
+
+            
+
+            function getSortPriority(el) {
                 // Using a simple text content check for the '.ts-badge'
                 var badgeEl = el.querySelector('.ts-badge');
                 var badgeText = badgeEl ? badgeEl.textContent.trim() : '';
@@ -91,67 +94,70 @@
                 return 5;
             }
         
-            function sortRowsCustom() {
+            function sortRows() {
+                
                 /*
                 // Optionally use this if you want to delay the animation due to userinteaction ( mouse move )
                 var now = new Date().getTime();
                 if ((now - lastUserMoved) < 3000) return delayedAnim();
                 */
+                
+                // If we're already animating we return ( a new check will be called at the end )
+                if( isAnimating ) return;
 
-                var container = document.querySelector('.ts-wrap');
-                var boxes = Array.prototype.slice.call(container.querySelectorAll('.ts-box'));
-
+                let container = document.querySelector('.ts-wrap');
+                let boxes = Array.prototype.slice.call( container.querySelectorAll('.channel-box') );
+                
                 // Sort the boxes based on status priority and header text
                 boxes.sort(function(a, b) {
-                    var pa = getStatusPriority(a);
-                    var pb = getStatusPriority(b);
+                    let pa = getSortPriority(a);
+                    let pb = getSortPriority(b);
                     if (pa !== pb) return pa - pb;
-                    var aHeaderEl = a.querySelector('.ts-header');
-                    var bHeaderEl = b.querySelector('.ts-header');
-                    var aText = aHeaderEl ? aHeaderEl.textContent.trim() : "";
-                    var bText = bHeaderEl ? bHeaderEl.textContent.trim() : "";
+                    let aText = getChannelNameFromElement(a);
+                    let bText = getChannelNameFromElement(b);
                     return aText.localeCompare(bText);
                 });
 
                 // Build the new order array of header texts
-                var newOrder = boxes.map(function(box) {
-                    var headerEl = box.querySelector('.ts-header');
-                    return headerEl ? headerEl.textContent.trim() : "";
+                let newOrder = boxes.map(function(box) { 
+                    return getChannelNameFromElement(box)
                 });
                 
                 // If the order hasn't changed, skip reordering and animation
-                if (arraysAreEqual(newOrder, lastOrder)) {
+                if (arraysAreEqual(newOrder, lastOrder)) { 
                     return;
                 }
 
                 // Store initial positions
-                var positions = new Map();
+                let positions = new Map();
                 boxes.forEach(function(box) {
                     positions.set(box, box.getBoundingClientRect());
                 });
 
                 // Append in new order to the container
-                boxes.forEach(function(box) {
-                    container.appendChild(box);
-                });
+                boxes.forEach(function(box) { container.appendChild(box); });
 
                 // Animate movement using gsap
+                isAnimating = true;
                 boxes.forEach(function(box) {
-                    var oldPos = positions.get(box);
-                    var newPos = box.getBoundingClientRect();
-                    var textarea = box.closest(".js-is-collapsed") ? null : box.querySelector("textarea");
-                    var deltaX = oldPos.left - newPos.left;
-                    var deltaY = oldPos.top - newPos.top;
-
-                    var dObj = { x: 0, y: 0, duration: 0.7, ease: "power2.out" }
-
+                    let oldPos = positions.get(box);
+                    let newPos = box.getBoundingClientRect();
+                    let from = { x: oldPos.left - newPos.left, y: oldPos.top  - newPos.top }
+                    let to = { x: 0, y: 0, duration: ANIMATION_TIME_MS/1000, ease: "back.inOut(1.1)" } /*"power2.inOut" */ 
+                    
                     // Scroll non collapsed texareas
+                    var textarea = box.closest(".js-is-collapsed") ? null : box.querySelector("textarea");
                     if( textarea ) {
-                        dObj.onUpdate = function() {
+                        to.onUpdate = function() {
                             if ( textarea ) scrollLogTextarea( textarea )
                         }
                     }    
-                    gsap.fromTo( box, { x: deltaX, y: deltaY }, dObj);
+                    to.onComplete = function(){
+                        isAnimating = false;
+                        setTimeout(function(){sortRows();},500)
+                    }                    
+                    
+                    gsap.fromTo( box, from, to );
                 });
 
                 // Update lastOrder to the new order for next time
@@ -164,12 +170,12 @@
             });
 
             return {
-                sortNow: function() {
-                    delayedAnim() // if you prefer using the delayed version
-                    //sortRowsCustom();
+                updateSort: function() {
+                    setTimeout( sortRows , 1000 );
                 }
             };
         })();
+        // ================================================================================================
 
 
        
@@ -253,7 +259,7 @@
                 open: open
             }
         })()
-
+        // ================================================================================================
 
 
 
@@ -285,7 +291,7 @@
      
             modal.showModal();
         }
-
+        // ================================================================================================
 
 
 
@@ -317,16 +323,17 @@
                 
                 // Temporarily disable scrollbar while animating ( looks better )
                 textarea.style.overflowY = "hidden";
-                setTimeout(function(){ textarea.style.overflowY = "auto";}, 450);
+                setTimeout(function(){ textarea.style.overflowY = "auto";}, 600);
 
                 // Make sure the logarea has text ( DOM updates are cancelled while collapsed )
-                setTimeout( function () { requestChannelUpdate(channel_id) },400); 
+                requestChannelUpdate(channel_id);
+                //setTimeout( function () { requestChannelUpdate(channel_id) },1000); 
             } else {
                 console.error('No parent .channel-box found for the clicked element.')
             }
             return cancelEvent(event);
         }
-
+        // ================================================================================================
 
 
 
@@ -364,7 +371,7 @@
 
                 }else if( event.target.closest('.ch-status') ) {
                     // PAUSE/RESUME CHANNEL
-                    event.target.closest('.paused') ? resumeChannel( channel_id ) : pauseChannel( channel_id );
+                    event.target.closest('.ch-status-paused') ? resumeChannel( channel_id ) : pauseChannel( channel_id );
                     return cancelEvent(event);    
                 
                 }else if( event.target.closest('.channel-thumbnail') ) {
@@ -397,6 +404,7 @@
             document.body.addEventListener('click', clickHandler); 
         })()
 
+        // ================================================================================================
 
 
 
@@ -411,10 +419,43 @@
         //-----
 
         var ChannelTracker = (function (){
+            
             var channel_data = {};
 
+           
+            function prefetchChannelData( onComepleteHandler ){
+               
+                // Fetch channel_data from session storage , if it exist. Mainly to store image anticache value
+                session_channel_data = JSON.parse( sessionStorage.getItem("channel_data") ) || {};
+                
+                getChannels(function(data){
+                    for(var i = 0; i < data.length ; i++){
+                        var ch = data[i];
+                        
+                        var status = "OFFLINE"
+                        if(ch.IsPaused) status = "PAUSED"
+                        if(ch.IsDownPrioritized) status = "QUEUED"
+                        if(ch.IsOnline) status = "RECORDING"
+                        if(ch.IsBlocked) status = "BLOCKED"
+                        
+                        var thumbAnticache = session_channel_data[ch.Username] ? session_channel_data[ch.Username].thumbAnticache || 0 : 0;
+                        
+                        channel_data[ch.Username] = {
+                            id:ch.Username,
+                            status:status,
+                            lastUpdateTs: Date.now(),
+                            thumbAnticache: thumbAnticache
+                        }
+                    }
+                    onComepleteHandler() 
+                })
+            }
+
+
+            // console.log("channel_data ", channel_data )
+
             const status_strings = ["OFFLINE","QUEUED","BLOCKED","PAUSED","RECORDING"];
-            
+
             function getStatusFromData(str) {
                 str = str.toUpperCase();
                 return status_strings.find(status => str.includes(status)) || null;
@@ -423,9 +464,8 @@
             function getChannelObj( channel_id ){
                 channel_data[channel_id] = channel_data[channel_id] || {
                     id: channel_id,
-                    lastInfoUpdateTs: Date.now(),
-                    lastLogUpdateTs: Date.now(),
                     lastUpdateTs: Date.now(),
+                    thumbAnticache: 0,
                     status: null
                 }; // Create if not exist
                 return channel_data[channel_id];
@@ -439,14 +479,14 @@
                 const ch = getChannelObj( sseInfo.channel_id );
                 ch.lastUpdateTs = now;
                 if (sseInfo.log_type === "info") {
-                    ch.lastInfoUpdateTs = now;
+
                     const status = getStatusFromData( e.detail.data );
                     if ( status && ch.status !== status ) {
                         ch.status = status;
-                        ChannelTracker.onUpdate(sseInfo.channel_id, status, ch);
+                        ChannelTracker.onStatusUpdate(sseInfo.channel_id, status, ch);
                     }
                 } else if (sseInfo.log_type === "log") {
-                    ch.lastLogUpdateTs = now;
+
                 }
             }
 
@@ -463,47 +503,114 @@
                 scrollLogTextarea(e.detail.elt);
             }
 
-            document.body.addEventListener('htmx:sseBeforeMessage', beforeSwapHandler);
-            document.body.addEventListener('htmx:afterSwap', afterSwapHandler);
+
+            function initTracker(){
+                if( cbdvr.debug ) console.log("initTracker()");
+
+                document.body.addEventListener('htmx:sseBeforeMessage', beforeSwapHandler);
+                document.body.addEventListener('htmx:afterSwap', afterSwapHandler);
+                
+                // Save the channel data onunload
+                window.addEventListener("beforeunload", function(){
+                    sessionStorage.setItem("channel_data", JSON.stringify(channel_data));
+                }, false);
+
+                ChannelTracker.onReady(channel_data)
+            }
             
-             return {
+            prefetchChannelData( initTracker );
+
+            return {
                 getChannel : function( channel_id ){
                     return getChannelObj( channel_id )
-                }
+                },
+                getChannelsData : function(){
+                    return channel_data;
+                }                
             }
         })();
 
 
-        var setStatusBadge = (function(){
-            // class names
+
+
+
+        function updateCounters() {
+            const data = ChannelTracker.getChannelsData();
+            const statusCounts = Object.values(data).reduce((acc, entry) => {
+                acc[entry.status] = (acc[entry.status] || 0) + 1;
+                return acc;
+            }, {});
+
+            // Select all badge elements with class starting with 'mini-badge-'
+            const badgesElm = document.querySelector(".mini-badges");
+            const allBadgeEls = document.querySelectorAll(".mini-badges > div");
+            badgesElm.style.opacity = 1;
+
+            allBadgeEls.forEach(el => {
+                const match = el.className.match(/mini-badge-(\w+)/i);
+                if (!match) return;
+
+                const status = match[1].toUpperCase();
+                const count = statusCounts[status];
+
+                if (count !== undefined) {
+                    var old = el.textContent
+                    if( count > old) {
+                        gsap.fromTo(el,{ scale: 1.2, opacity: 1, },{ delay:.2,scale: 1 ,opacity:.7, duration: 1, ease: "back.out(1.3)" });
+                    }else {
+                        gsap.fromTo(el,{ opacity: .4, },{ scale: 1 ,opacity:.7, duration: 1, ease: "back.out(1.3)" }); 
+                    }
+                    el.textContent = count;
+                    el.style.display = ""; // show it                                                              
+                } else {
+                    el.style.display = "none"; // hide it
+                }
+                
+            });
+        }
+
+        var UpdateChannelVisuals = (function(){
+
             var a_status = ["blocked", "offline", "recording", "paused", "queued"];
-            
-            function setStatusBadge(channel_id, status_txt){
-                try {
-                    var el = document.body.querySelector(".ts-box." + channel_id + " .ch-status");
-                    if (el) {
-                        // Remove all possible status classes
-                        a_status.forEach(function(status){
-                            el.classList.remove(status.toLowerCase());
-                        });
-                        // Update content and add new status class
-                        el.innerHTML = status_txt;
-                        el.classList.add(status_txt.toLowerCase());
-                    } 
-                } catch(err) {
-                    // Optionally log or handle the error
-                }
+
+            function setChannelBoxStatus(channel_box, channel_id, status_txt){
+                a_status.forEach(status => channel_box.classList.remove( "ch-status-"+status ));
+                channel_box.classList.add( "ch-status-"+status_txt.toLowerCase() );
             }
-            return setStatusBadge;
+            
+            return function ( channel_id, status_txt ){
+                console.log("channel_id", channel_id)
+                var channel_box = getBoxFromChannelName( channel_id );
+                channel_box.querySelector(".ch-status").innerHTML = status_txt;
+                setChannelBoxStatus( channel_box, channel_id, status_txt );
+                ListSorter.updateSort();
+                updateCounters();
+            }
         })();
 
+      
+        // ================================================================================================
+        
+        // DO SOMETHING WHEN STATUS CHANGE TRACKED  
 
-        // This is called everytime a channel shanges status
-        ChannelTracker.onUpdate = function( channel_id, status_txt ){
-            setStatusBadge(channel_id, status_txt);
-            ListSorter.sortNow();
+        // This is called everytime a channel changes its status
+        ChannelTracker.onStatusUpdate = function( channel_id, status_txt ){
+            UpdateChannelVisuals( channel_id, status_txt );
             if( cbdvr.debug ) console.log("Channel Status Updated: " + channel_id + " ["+status_txt+"]");
         }
+
+        ChannelTracker.onReady = function( channels_data ){
+            if( cbdvr.debug ) console.log("Tracker ready", channels_data )
+            setTimeout( function() { updateCounters() }, 500);
+            // Make sure that updated background images ( in this session ) are not being cached    
+            Object.values(channels_data).forEach( function( ch ) {
+                if (ch.thumbAnticache) makeThumbnailUncached( ch.id, ch.thumbAnticache );
+            });
+        }        
+
+        // ================================================================================================
+        
+        
 
 
 
@@ -535,16 +642,23 @@
         }
      
         function updateChannelThumbnail(channel_id, onData){
+            var elm = getBoxFromChannelName( channel_id );
+            if(!elm) return;
+
+            elm.classList.add("loading-thumbnail");
+            var success = null;
+
             fetch( '/update_thumbnail/' + channel_id, { method: 'POST' }).then(function(response) {
                 if (response.ok) {
-                    var elm = getChannelListElementFromName( channel_id )
-                    console.log("channel_id: " + channel_id, elm)
-                    
-                    elm.classList.add("loading-thumbnail")
-                    setTimeout(function(){ window.location.reload(true); },3000);
+                    success = true;
                 } else {
-                    console.error("Failed to pause channel:", channel_id);
+                    console.error("Failed to update thumbnail for:", channel_id);
                 }
+            }).finally(() => {
+                setTimeout( function(){ 
+                    if( success === true ) makeThumbnailUncached( channel_id );
+                    elm.classList.remove("loading-thumbnail"); 
+                }, 500 );
             }); 
         }
 
@@ -569,7 +683,7 @@
                 if (!response.ok) console.error("Failed to resume channel:", channel_id);        
             });                
         }    
-
+        // ================================================================================================
 
 
 
@@ -582,6 +696,8 @@
 
 
 
+
+        // --
         function sseParseEvent(evt){
             // Parse the id 
             // Example: "channel123-info" or "channel123-log"    
@@ -596,45 +712,52 @@
             var log_type    = sswe_id.substring( divider + 1 , sswe_id.length ); // "info" or "log" 
             return ( log_type && channel_id ) ? {channel_id: channel_id,log_type: log_type} : {};
         }
-
+        // --
         function cancelEvent(evt){
             evt.stopPropagation();
             evt.preventDefault();
             return null
         }
-      
+        // --
         function getChannelNameFromElement(el) {
-            try {
-                return el.closest('[channel-id]').getAttribute("channel-id");
-            }catch(err) {}
-            return null;
+            let chEl = el.closest('[channel-id]');
+            return chEl ? chEl.getAttribute("channel-id") : "";
         }
-
+        // --
         function getElementFromChannelName( channel_id ){
             return document.querySelector(`[sse-swap="${channel_id}-info"]`);
         }
-
-        function getChannelListElementFromName( channel_id ){
+        // --
+        function getBoxFromChannelName( channel_id ){
             return document.querySelector(`[channel-id="${channel_id}"]`);
         }
 
         function scrollLogTextarea( el ){
             if( el.closest(".js-is-collapsed") ) return null
-            var textarea = el.tagName === "TEXTAREA" ? el : el.querySelector("textarea")
+            var textarea = el.tagName === "TEXTAREA" ? el : el.querySelector("textarea");
             
             // Only scroll if textarea is non collapsed and "Auto Log Update" is enabled
             if( textarea && el.closest(".channel-box").querySelector("[type=checkbox]").checked ) {
                 setTimeout( function(){ textarea.scrollTop = textarea.scrollHeight; }, 1 )
             }
-        }
+        } 
 
 
+        // -- Get user-agent
         function insertUserAgent(){
             document.querySelector('#settings-dialog textarea[name="user_agent"]').value = navigator.userAgent;
         }
 
-
-   
+        // -- Manage anticache parameter to update thumbnail
+        function makeThumbnailUncached( channel_id , anticacheInt ){
+            var ch = ChannelTracker.getChannel( channel_id );
+            var elm = getBoxFromChannelName( channel_id );
+            try {
+                elm.querySelector(".channel-thumbnail").style.backgroundImage = ( "url(./channel-images/" + channel_id + ".jpg?"+ ( anticacheInt || ++ch.thumbAnticache ) +" ), url(static/default_user.png)" );
+            }catch(err){}
+        }
+    
+        // ================================================================================================
 
 
 
@@ -713,7 +836,7 @@
 
             events.forEach(event => document.body.addEventListener(event, doDebug));
         }
-        
+        // ================================================================================================
 
 
 
@@ -745,7 +868,7 @@
         // Blur for screenshots 
         // call cbdvr.blurForDemo() in web console
 
-
+        // ================================================================================================
 
 
 
@@ -764,7 +887,7 @@
                 sortList: ListSorter.sortNow,
                 enableSSEDebugging: enableSSEDebugging,
                 enableDebug:enableDebug,
-                debug: false,
+                debug: cbdvr_debug,
                 blurForDemo: blurForDemo,
                 getChannels: getChannels,
                 getChannelsCSV: getChannelsCSV,
@@ -774,9 +897,11 @@
                 confirmChannelDeletion: confirmChannelDeletion,
                 updateChannelThumbnail:updateChannelThumbnail,
                 insertUserAgent: insertUserAgent,
+                getTrackedChannels:function(){ return ChannelTracker.getChannelsData() }
             }
         })()
 
+        // ================================================================================================
 
     } /* End Of main */ 
 
