@@ -19,15 +19,12 @@
         <title>Chaturbate DVR</title>
 
         <style>
-            
-
-
-
             .ts-app-layout > .is-scrollable {
                 /* Force visible scrollbar, so expanding seems less jerky */
                 overflow-y: scroll !important;
             }
 
+            /* Title rollover */
             .js-username-title {
                 opacity: .7; 
                 transition: opacity .1s linear;
@@ -36,11 +33,13 @@
                 opacity: 1; 
             } 
             
+            /* Not collapsed*/
             .sse-content {
                 transition: height .4s ease-in-out , opacity .4s linear;
                 height: 370px;
             }
 
+            /* Collapsed*/
             .js-is-collapsed .sse-content {
                 height: 0px;
                 opacity: 0;
@@ -52,17 +51,24 @@
                 justify-content: center; /* optional: horizontally center too */
                 line-height: normal; /* reset any inherited button styles */
             }
-            .channel-box  {
-                transition: opacity .2s linear;
-                opacity: 1;
-            }
-            .channel-box.js-is-collapsed {
-                opacity: .78;
-               
-            }
-            .channel-box:hover {
-                opacity: 1;
-            }
+            
+            /* ChanneL rollover */
+			.channel-box {
+				transition: box-shadow .16s ease-out;
+				opacity: 1;
+			}
+
+			.channel-box.js-is-collapsed {
+				opacity: 1; /* Changed from .78 to 1 */
+			}
+
+			.channel-box:hover {
+				opacity: 1;
+				border: 1px solid var(--ts-gray-400);
+				box-shadow: 0 0 12px rgba(255, 255, 255, 0.1); /* Glowing effect */
+			}
+
+
             .channel-header {
                 cursor: pointer;
                 user-select: none;
@@ -70,6 +76,9 @@
                 -ms-user-select: none; 
                              
             }
+
+
+
 
             .channel-menu-item {
                 margin-left: 1em;
@@ -159,29 +168,9 @@
                 pointer-events: none;
             }
 
-            .ts-badge.ch-status {
-                padding: .7em .7em;
-                padding-left: .8em;
-                min-width: 8.8em;
-                text-align: center;
-                letter-spacing: .1em;
-                cursor: pointer;
-                user-select: none;
-                -ms-user-select: none; 
-                -webkit-user-select: none;
-                transition: color .33s ease, background-color .33s linear;
-
-            }
-
-
             .loading-thumbnail .channel-thumbnail::after {
                 opacity: 0.25; 
                 pointer-events: none;
-            }
-             
-            .ts-box.is-horizontal .column .ts-badge:hover {
-                border: 2px solid rgba(211, 211, 211,.5);
-                box-shadow: 0 0 20px 0px rgba(255,255,255,.1);
             } 
 
             /*
@@ -197,13 +186,27 @@
                 flex: none;
             }
             
-            /* Blur for screenshots */
-            .blur-for-demo .channel-thumbnail, .blur-for-demo .js-username-title {
-                filter: blur(3px);
+
+            /* Status badge */
+
+            .ts-badge.ch-status {
+                padding: .7em .7em;
+                padding-left: .8em;
+                min-width: 8.8em;
+                text-align: center;
+                letter-spacing: .1em;
+                cursor: pointer;
+                user-select: none;
+                -ms-user-select: none; 
+                -webkit-user-select: none;
+                transition: color .33s ease, background-color .33s linear;
+
             }
 
-
-
+            .ts-box.is-horizontal .column .ts-badge:hover {
+                border: 2px solid rgba(211, 211, 211,.5);
+                box-shadow: 0 0 20px 0px rgba(255,255,255,.1);
+            } 
 
 
             .ts-badge.ch-status {
@@ -225,6 +228,12 @@
                 .ts-badge.ch-status.recording   { background-color: rgb(200 230 218);} 
             }
 
+            /* Blur for screenshots */
+            .blur-for-demo .channel-thumbnail, .blur-for-demo .js-username-title {
+                filter: blur(3px);
+            }
+
+            /* Debug - Logwindow */
 
             #log-window {
                 width: 300px;
@@ -269,7 +278,6 @@
 
     <body hx-ext="sse">
 
-
         <div class="ts-app-layout is-fullscreen is-vertical">
             <!-- Fixed Header -->
             <div class="cell" style="padding:40px 0px">
@@ -311,9 +319,6 @@
                                 </button>
                             </div>
                             
-
-  
-
                         </div>
                     </div>
                 </div>
@@ -360,7 +365,7 @@
                                         <div title="Edit channel" class="channel-menu-item ts-icon is-gear-icon btn-edit"></div>
                                         <div title="Delete channel"  class="channel-menu-item ts-icon is-trash-icon btn-delete"></div>
                                     </div>
-                                        
+                                    <!-- / channel-menu -->     
                                     <div class="column">
                                         {{ if .IsPaused }}
                                             <span class="ts-badge is-negative is-small is-start-spaced ch-status paused" title="Click to resume channel">PAUSED</span>

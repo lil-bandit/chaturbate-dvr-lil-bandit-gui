@@ -308,16 +308,21 @@
             var textarea = channel_box.querySelector("textarea");
             
             if ( channel_box ) {
-                channel_box.classList.toggle(collapseClass)
+                if (channel_box.classList.contains(collapseClass)) {
+                    channel_box.classList.remove(collapseClass);
+                    document.activeElement.blur();
+                } else {
+                    channel_box.classList.add(collapseClass);
+                }
                 
-                // Temporarily disable scrollbar ( looks better for animation )
+                // Temporarily disable scrollbar while animating ( looks better )
                 textarea.style.overflowY = "hidden";
                 setTimeout(function(){ textarea.style.overflowY = "auto";}, 450);
 
-                // Make sure the logarea has text ( DOM updates are cancelled when collapsed )
+                // Make sure the logarea has text ( DOM updates are cancelled while collapsed )
                 setTimeout( function () { requestChannelUpdate(channel_id) },400); 
             } else {
-                console.error('No parent .ts-box found for the clicked element.')
+                console.error('No parent .channel-box found for the clicked element.')
             }
             return cancelEvent(event);
         }
@@ -418,8 +423,9 @@
             function getChannelObj( channel_id ){
                 channel_data[channel_id] = channel_data[channel_id] || {
                     id: channel_id,
-                    lastInfoUpdate: new Date().getTime(),
-                    lastLogUpdate: new Date().getTime(),
+                    lastInfoUpdateTs: Date.now(),
+                    lastLogUpdateTs: Date.now(),
+                    lastUpdateTs: Date.now(),
                     status: null
                 }; // Create if not exist
                 return channel_data[channel_id];
@@ -613,13 +619,12 @@
         }
 
         function scrollLogTextarea( el ){
-            var textarea = null
             if( el.closest(".js-is-collapsed") ) return null
-            textarea = el.tagName === "TEXTAREA" ? el : el.querySelector("textarea")
+            var textarea = el.tagName === "TEXTAREA" ? el : el.querySelector("textarea")
             
             // Only scroll if textarea is non collapsed and "Auto Log Update" is enabled
-            if( textarea && el.closest(".ts-box").querySelector("[type=checkbox]").checked ) {
-                setTimeout(function(){ textarea.scrollTop = textarea.scrollHeight; },1)
+            if( textarea && el.closest(".channel-box").querySelector("[type=checkbox]").checked ) {
+                setTimeout( function(){ textarea.scrollTop = textarea.scrollHeight; }, 1 )
             }
         }
 
@@ -668,7 +673,7 @@
 
 
         function enableDebug(e){
-            cbdvr.debug = true;
+            cbdvr.debug = !!cbdvr.debug;
             document.body.classList.toggle("debug");
             //document.getElementById('log-window');
             if(e) cancelEvent(e);
@@ -738,7 +743,7 @@
             document.body.classList.toggle("blur-for-demo");
         }  
         // Blur for screenshots 
-        // call cbdvr.getChannelsCSV() in web console
+        // call cbdvr.blurForDemo() in web console
 
 
 
