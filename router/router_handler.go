@@ -115,7 +115,7 @@ func CreateChannel(c *gin.Context) {
 
 	// CREATE MODE
 	// Create mode: create new channel(s)
-	for _, username := range strings.Split(req.Username, ",") {
+	for i, username := range strings.Split(req.Username, ",") {
 		server.Manager.CreateChannel(&entity.ChannelConfig{
 			IsPaused:    false,
 			Username:    username,
@@ -124,10 +124,9 @@ func CreateChannel(c *gin.Context) {
 			Pattern:     req.Pattern,
 			MaxDuration: req.MaxDuration,
 			MaxFilesize: req.MaxFilesize,
-			//MinFilesize: req.MinFilesize,
-			Priority:  req.Priority,
-			CreatedAt: time.Now().Unix(),
-		}, true)
+			Priority:    req.Priority,
+			CreatedAt:   time.Now().Unix(),
+		}, true, i+1)
 	}
 	c.Redirect(http.StatusFound, "/")
 }

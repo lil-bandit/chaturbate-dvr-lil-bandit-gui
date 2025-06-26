@@ -46,6 +46,8 @@ type ChannelInfo struct {
 	StreamedAt        string
 	MaxDuration       string
 	MaxFilesize       string
+	MaxFilesizeInt    int
+	MaxDurationInt    int
 	//MinFilesize       string
 	CreatedAt    int64
 	Logs         []string

@@ -107,17 +107,19 @@ func (ch *Channel) ExportInfo() *entity.ChannelInfo {
 		MaxDuration:       internal.FormatDuration(float64(ch.Config.MaxDuration * 60)), // MaxDuration from config is in minutes
 		MaxFilesize:       internal.FormatFilesize(ch.Config.MaxFilesize * 1024 * 1024), // MaxFilesize from config is in MB
 		//MinFilesize:       internal.FormatFilesize(ch.Config.MinFilesize * 1024 * 1024), // MinFilesize from config is in MB
-		StreamedAt:   streamedAt,
-		CreatedAt:    ch.Config.CreatedAt,
-		Duration:     internal.FormatDuration(ch.Duration),
-		Filesize:     internal.FormatFilesize(ch.Filesize),
-		Priority:     ch.Config.Priority,
-		Filename:     filename,
-		Logs:         ch.Logs,
-		GlobalConfig: server.Config,
-		Framerate:    ch.Config.Framerate,
-		Resolution:   ch.Config.Resolution,
-		Pattern:      ch.Config.Pattern,
+		StreamedAt:     streamedAt,
+		CreatedAt:      ch.Config.CreatedAt,
+		Duration:       internal.FormatDuration(ch.Duration),
+		Filesize:       internal.FormatFilesize(ch.Filesize),
+		Priority:       ch.Config.Priority,
+		Filename:       filename,
+		Logs:           ch.Logs,
+		GlobalConfig:   server.Config,
+		MaxFilesizeInt: ch.Config.MaxFilesize,
+		MaxDurationInt: ch.Config.MaxDuration,
+		Framerate:      ch.Config.Framerate,
+		Resolution:     ch.Config.Resolution,
+		Pattern:        ch.Config.Pattern,
 	}
 }
 

@@ -229,8 +229,8 @@
                         // Fill fields
                         document.querySelector('select[name="resolution"]').value   = data.Resolution   || 1080
                         document.querySelector('input[name="priority"]').value      = data.Priority     || 0
-                        document.querySelector('input[name="max_filesize"]').value  = data.MaxFilesize  || 0;
-                        document.querySelector('input[name="max_duration"]').value  = timeStringToMinutes(data.MaxDuration); // Need to find a way to export just the numbers from channel.Config
+                        document.querySelector('input[name="max_filesize"]').value  = data.MaxFilesizeInt  || 0;
+                        document.querySelector('input[name="max_duration"]').value  = data.MaxDurationInt || 0; 
                         document.querySelector('input[name="pattern"]').value       = data.Pattern      || "";
 
                         title_text = document.querySelector('#create-dialog .ts-header').textContent

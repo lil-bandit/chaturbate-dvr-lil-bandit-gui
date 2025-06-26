@@ -90,7 +90,7 @@ func (m *Manager) LoadConfig() error {
 }
 
 // CreateChannel starts monitoring an M3U8 stream
-func (m *Manager) CreateChannel(conf *entity.ChannelConfig, shouldSave bool) error {
+func (m *Manager) CreateChannel(conf *entity.ChannelConfig, shouldSave bool, seq int) error {
 	conf.Sanitize()
 	ch := channel.New(conf)
 
@@ -101,7 +101,7 @@ func (m *Manager) CreateChannel(conf *entity.ChannelConfig, shouldSave bool) err
 	}
 	m.Channels.Store(conf.Username, ch)
 	m.DownloadChannelImage(conf.Username)
-	go ch.Resume(0)
+	go ch.Resume(seq)
 
 	if shouldSave {
 		if err := m.SaveConfig(); err != nil {
