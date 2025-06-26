@@ -19,11 +19,11 @@ Changes
 - You can now define a directory for completed files (-output-dir <directory name>) - added 2025-06-23 ( With help from misterkoko ) 
 - You can now use a preset config (-config <file.json>) - added 2025-06-23 ( With help from misterkoko ) 
 - Use persisted settings ( Use the tick box in the server settings dialog ) - added 2025-06-23
-- Refresh Thumbnail ( Click on the thumbnail of active channel to get new thumbnail - warning: Images in the browser can be cached, so press CTRL+SHIFT+R to refresh browser+cache )  - added 2025-06-23
+- Refresh Thumbnail (Not working in Docker) ( Click on the thumbnail of active channel to get new thumbnail - warning: Images in the browser can be cached, so press CTRL+SHIFT+R to refresh browser+cache )  - added 2025-06-23
 - Minimizing DOM updates by cancelling LOG updates when a listitem is collapsed  - added 2025-06-23
 
 - API additions
-  - //localhost:8080/api/channel/:username <-- gets all info and status of a channel
+  - //localhost:8080/api/channel/\<username\> <-- gets all info and status of a channel
   - //localhost:8080/api/channels  <-- gets info and status of <i>all</i> channels
 
 <br>
@@ -47,7 +47,7 @@ https://github.com/lil-bandit/chaturbate-dvr/releases
 Docker Image 
 =============================
 1. Install <a href="https://www.docker.com/products/docker-desktop/">Docker Desktop</a> for <u>Windows</u>
-2. Download image and run Chaturbate DVR LB container --> Put the following script in a <a href="https://github.com/lil-bandit/chaturbate-dvr/releases/tag/docker-helper">batfile</a> to achieve this<br> 
+2. Download image and run Chaturbate DVR LB container --> Put the following script in a <a href="https://github.com/lil-bandit/chaturbate-dvr/releases/tag/docker-helper">batfile</a> to install image and run as container<br> 
 
 
 
@@ -60,18 +60,21 @@ docker rm chaturbate-dvr-lb
 docker rmi lilbandit/chaturbate-dvr
 
 :: Download latest image
-docker pull lilbandit/chaturbate-dvr  
+docker pull lilbandit/chaturbate-dvr
 
-:: Create container with arguments and run (Change)
+:: Create and run the container with timezone set
 docker run -d ^
   --name chaturbate-dvr-lb ^
   -p 8080:8080 ^
   -v C:\temp\dvr_videos:/usr/src/app/videos ^
   -v C:\temp\dvr_config:/usr/src/app/conf ^
+  -e TZ=Europe/Copenhagen ^
   lilbandit/chaturbate-dvr ^
   -domain "https://chaturbate.com/" ^
   -interval 1 ^
-  -max-connections 10
+  -max-connections 10 ^
+  -min-filesize 10 ^
+  -output-dir ./complete
 </pre>
 ⚠️<b>NOTE:</b> Make sure the folderpaths are pointing to desired directories on your system.
 
