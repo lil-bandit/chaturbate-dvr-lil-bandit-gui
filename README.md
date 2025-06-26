@@ -23,7 +23,7 @@ Changes
 - Minimizing DOM updates by cancelling LOG updates when a listitem is collapsed  - added 2025-06-23
 
 - API additions
-  - //localhost:8080/api/channel/<username> <-- gets all info and status of a channel
+  - //localhost:8080/api/channel/\<username\> <-- gets all info and status of a channel
   - //localhost:8080/api/channels  <-- gets info and status of <i>all</i> channels
 
 <br>
