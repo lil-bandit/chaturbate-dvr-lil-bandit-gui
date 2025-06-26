@@ -38,8 +38,10 @@ func (ch *Channel) Monitor() {
 			ch.IsOnline = false // not sure this is needed
 
 			// Possible fix to #114 0KB bug
-			if err := ch.Cleanup(); err != nil {
-				ch.Error("cleanup on retry: %v", err)
+			if ch.File != nil {
+				if err := ch.Cleanup(); err != nil {
+					ch.Error("cleanup on retry: %v", err)
+				}
 			}
 
 			if errors.Is(err, internal.ErrDownPrioritized) {
