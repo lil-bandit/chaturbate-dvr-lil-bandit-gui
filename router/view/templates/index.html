@@ -223,30 +223,48 @@
                 color: var(--accent-color, var(--ts-gray-800));
             }
 
-            .mini-badges{
+            /*.mini-badges{
                 gap: 0.4em;
                 transition: opacity 1s linear;
                 opacity: 0;
-                
             } 
             .mini-badges > * {
                 width: 21px;
                 height: 21px;
                 opacity: .7;
+            }*/
+            .mini-badges > .throughput {
+                width:auto;
             }
+            .mini-badges > * {
+                height: 42px;
+                /*To have height , when all badges have display:none 🤷‍♂️ */
+            }
+            .mini-badges {
+                gap: 0.8em;
+                transition: opacity 1s linear;
+                opacity: 0;
+                transform: scale(0.5); 
+                transform-origin: top left;
+                margin-bottom:-21px;
+            }
+
            .mini-badges > div {
                 border-radius: 25px;
                 text-align: center;
                 border: 1px solid;
-                line-height: 2;
-                font-size: 0.6em;
+                line-height: 1.9;
+                font-size: 1.3em;
                 letter-spacing: .1em;
                 padding-left: 0.1em;
-                transition: opacity .1s linear;  
+                transition: opacity .1s linear;
+                width: 42px;
+                height: 42px;
+                opacity: 0.7;              
            }
 
             .mini-badges .mini-badge-blocked {
-                background-color: hsl(47, 28%, 35%);
+                background-color: rgb(114, 103, 64);
                 color: #fff;
             }
             .mini-badges .mini-badge-paused {
@@ -268,7 +286,7 @@
 
             @media (prefers-color-scheme: light) {
                 .mini-badge-blocked {
-                    background-color: #e3dbc1;
+                    background-color: rgb(227, 219, 193);
                     color: #736840;
                 }
                 .mini-badge-paused {
@@ -369,6 +387,7 @@
                                     <div class="column mini-badge-queued"       style="display: none;">32</div>
                                     <div class="column mini-badge-recording"    style="display: none;">32</div>
                                     <div class="column mini-badge-blocked"      style="display: none;">32</div>
+                                    <div class="column has-horizontally-padded throughput"></div>
                                     <span class="column is-fluid"></span>
                                 </div>                                
                             </div>

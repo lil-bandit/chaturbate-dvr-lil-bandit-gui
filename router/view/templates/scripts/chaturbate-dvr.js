@@ -34,16 +34,24 @@
         // and it will automatically extract the username from it.
 
         document.getElementById('username-input').addEventListener('input', function (e) {
-            let value = e.target.value.trim()
-            // Only try to extract channel ID if it looks like a chaturbate URL
+            let value = e.target.value.trim();
+
+            // If it's a chaturbate URL, extract the username
             if (value.includes('chaturbate.')) {
                 let match = value.match(/^(?:https?:\/\/)?(?:[a-zA-Z0-9-]+\.)?chaturbate\.[a-z.]+\/([^\/\s?#]+)/i);
                 if (match) {
-                    // Replace input with just the username
-                    e.target.value = match[1] 
+                    value = match[1];
                 }
             }
-            // Otherwise, leave as-is (for comma-separated IDs)
+
+            // Sanitize for CSV-style input by removing empty values
+            const cleaned = value
+                .split(',')
+                .map(v => v.trim())
+                .filter(v => v.length > 0)
+                .join(',');
+
+            e.target.value = cleaned;
         });
         // ================================================================================================
 
@@ -69,16 +77,8 @@
 
             // Helper to compare two arrays element by element
             function arraysAreEqual(arr1, arr2) {
-                if (!arr1 || !arr2 || arr1.length !== arr2.length) return false;
-                for (var i = 0; i < arr1.length; i++) {
-                    if (arr1[i] !== arr2[i]) return false;
-                }
-                return true;
+                return arr1.length === arr2.length && arr1.every((val, i) => val === arr2[i]); 
             }
-
-
-
-            
 
             function getSortPriority(el) {
                 // Using a simple text content check for the '.ts-badge'
@@ -96,46 +96,34 @@
         
             function sortRows() {
                 
-                /*
-                // Optionally use this if you want to delay the animation due to userinteaction ( mouse move )
                 var now = new Date().getTime();
-                if ((now - lastUserMoved) < 3000) return delayedAnim();
-                */
                 
-                // If we're already animating we return ( a new check will be called at the end )
-                if( isAnimating ) return;
+                if( isAnimating ) return; // If we're already animating then we return ( a new check will be called when the animation completes )
+                if ( ( now - lastUserMoved ) < 1000 ) return setTimeout(function(){ sortRows()},500); // delay the animation due to userinteaction ( mouse move )
 
                 let container = document.querySelector('.ts-wrap');
                 let boxes = Array.prototype.slice.call( container.querySelectorAll('.channel-box') );
                 
-                // Sort the boxes based on status priority and header text
+                // Sort the boxes based on status priority and channel name
                 boxes.sort(function(a, b) {
                     let pa = getSortPriority(a);
                     let pb = getSortPriority(b);
                     if (pa !== pb) return pa - pb;
-                    let aText = getChannelNameFromElement(a);
-                    let bText = getChannelNameFromElement(b);
-                    return aText.localeCompare(bText);
+                    return getChannelNameFromElement(a).localeCompare( getChannelNameFromElement(b) );
                 });
 
                 // Build the new order array of header texts
-                let newOrder = boxes.map(function(box) { 
-                    return getChannelNameFromElement(box)
-                });
+                let newOrder = boxes.map(function(box) { return getChannelNameFromElement(box)});
                 
                 // If the order hasn't changed, skip reordering and animation
                 if (arraysAreEqual(newOrder, lastOrder)) { 
                     return;
                 }
 
-                // Store initial positions
+                
                 let positions = new Map();
-                boxes.forEach(function(box) {
-                    positions.set(box, box.getBoundingClientRect());
-                });
-
-                // Append in new order to the container
-                boxes.forEach(function(box) { container.appendChild(box); });
+                boxes.forEach(function(box) { positions.set(box, box.getBoundingClientRect());}); // Store initial positions
+                boxes.forEach(function(box) { container.appendChild(box); }); // Append in new order to the container
 
                 // Animate movement using gsap
                 isAnimating = true;
@@ -147,21 +135,19 @@
                     
                     // Scroll non collapsed texareas
                     var textarea = box.closest(".js-is-collapsed") ? null : box.querySelector("textarea");
-                    if( textarea ) {
-                        to.onUpdate = function() {
-                            if ( textarea ) scrollLogTextarea( textarea )
-                        }
-                    }    
+                    if( textarea ) { 
+                        to.onUpdate = function() { 
+                            scrollLogTextarea( textarea );
+                        };    
+                    }
                     to.onComplete = function(){
-                        isAnimating = false;
+                        isAnimating = false; // Allow new animation
                         setTimeout(function(){sortRows();},500)
-                    }                    
-                    
+                    }                       
                     gsap.fromTo( box, from, to );
                 });
 
-                // Update lastOrder to the new order for next time
-                lastOrder = newOrder;
+                lastOrder = newOrder; // Update lastOrder to the new order for next time
             }
 
             // Listen to mouse movements (this was used before for potential delays)
@@ -331,7 +317,7 @@
             } else {
                 console.error('No parent .channel-box found for the clicked element.')
             }
-            return cancelEvent(event);
+            
         }
         // ================================================================================================
 
@@ -350,8 +336,8 @@
             // Gotta Catch 'Em All! 🦖🎵🎶
 
             function clickHandler(event) {
-                var channel_id = getChannelNameFromElement(event.target);
                 //console.log( "channel_id " + channel_id )
+                var channel_id = getChannelNameFromElement(event.target);
                 
                 if( event.target.closest('.btn-openweb') ) {
                     // OPEN ON WEBSITE
@@ -384,21 +370,23 @@
                         // Channel is offline or paused, we just expand instead
                         onCollapsibleClick(event);
                     }
-                    
                     return cancelEvent(event);
 
                 }else if ( event.target.closest(".menu-export-as-csv") ) {
+                    // EXPORT CHANNELS LIST AS CSV
                     return cancelEvent(event);
+
                 }else if ( event.target.closest(".menu-enable-debug") ) {
+                    // ENABLE DEBUG
                     cbdvr.enableDebug(event);
                     return cancelEvent(event);
-                }                
 
-                // EXPAND/COLLAPSE LIST ITEM
-                if( event.target.closest('.channel-header') ) {
+                }else  if( event.target.closest('.channel-header') ) {
+                    // EXPAND/COLLAPSE LIST ITEM
                     onCollapsibleClick(event);
-                }     
+                    return cancelEvent(event);
 
+                }                    
             };
 
             document.body.addEventListener('click', clickHandler); 
@@ -420,73 +408,66 @@
 
         var ChannelTracker = (function (){
             
-            var channel_data = {};
+            var channels = {};
 
+            const status_strings = ["OFFLINE","QUEUED","BLOCKED","PAUSED","RECORDING"];
            
             function prefetchChannelData( onComepleteHandler ){
-               
-                // Fetch channel_data from session storage , if it exist. Mainly to store image anticache value
-                session_channel_data = JSON.parse( sessionStorage.getItem("channel_data") ) || {};
-                
+                // Fetch channels from session storage , if it exist. Mainly to store image anticache value
+                session_channels = JSON.parse( sessionStorage.getItem("channels") ) || {};
+  
                 getChannels(function(data){
                     for(var i = 0; i < data.length ; i++){
-                        var ch = data[i];
-                        
-                        var status = "OFFLINE"
-                        if(ch.IsPaused) status = "PAUSED"
-                        if(ch.IsDownPrioritized) status = "QUEUED"
-                        if(ch.IsOnline) status = "RECORDING"
-                        if(ch.IsBlocked) status = "BLOCKED"
-                        
-                        var thumbAnticache = session_channel_data[ch.Username] ? session_channel_data[ch.Username].thumbAnticache || 0 : 0;
-                        
-                        channel_data[ch.Username] = {
-                            id:ch.Username,
-                            status:status,
-                            lastUpdateTs: Date.now(),
-                            thumbAnticache: thumbAnticache
-                        }
+                        var chInfo = data[i]; // json object sent from go
+                        var ch = getChannelObj( chInfo.Username ); // create our js tracking object                        
+                        ch.status = chInfo.IsPaused ? "PAUSED" : chInfo.IsBlocked ? "BLOCKED" : chInfo.IsDownPrioritized ? "QUEUED" : chInfo.IsOnline ? "RECORDING" : "OFFLINE";
+                        ch.thumbAnticache = session_channels[chInfo.Username] ? session_channels[chInfo.Username].thumbAnticache || 0 : 0;
                     }
                     onComepleteHandler() 
                 })
             }
 
-
-            // console.log("channel_data ", channel_data )
-
-            const status_strings = ["OFFLINE","QUEUED","BLOCKED","PAUSED","RECORDING"];
-
-            function getStatusFromData(str) {
+            function getStatusFromEventData(str) {
                 str = str.toUpperCase();
                 return status_strings.find(status => str.includes(status)) || null;
             }        
              
-            function getChannelObj( channel_id ){
-                channel_data[channel_id] = channel_data[channel_id] || {
+            function getChannelObj( channel_id  ){
+                channels[channel_id] = channels[channel_id] || {
                     id: channel_id,
                     lastUpdateTs: Date.now(),
                     thumbAnticache: 0,
-                    status: null
+                    status: null,
+                    dataTransferTracking : []
                 }; // Create if not exist
-                return channel_data[channel_id];
+                return channels[channel_id];
             }
+
+
+
 
             function inspectEvent(e) {
                 const now = Date.now();
                 const sseInfo = sseParseEvent(e);
-                if (!sseInfo.channel_id) return console.log("channel_id was nothing");
+                //console.log("sseInfo.log_type: "+sseInfo.log_type, e)
+                if ( !sseInfo.channel_id ) return console.log("channel_id was nothing");
 
                 const ch = getChannelObj( sseInfo.channel_id );
                 ch.lastUpdateTs = now;
                 if (sseInfo.log_type === "info") {
 
-                    const status = getStatusFromData( e.detail.data );
+                    const status = getStatusFromEventData( e.detail.data );
                     if ( status && ch.status !== status ) {
+                        // it changed, setting new reference and notifying;
                         ch.status = status;
-                        ChannelTracker.onStatusUpdate(sseInfo.channel_id, status, ch);
+                        ChannelTracker.onStatusUpdate( ch, e );
                     }
                 } else if (sseInfo.log_type === "log") {
-
+                    if( ch.status == "RECORDING" ) {
+                        ChannelTracker.onRecordingUpdate( ch, e );
+                    }
+                        
+                        
                 }
             }
 
@@ -505,37 +486,93 @@
 
 
             function initTracker(){
-                if( cbdvr.debug ) console.log("initTracker()");
-
+                if( cbdvr.debug ) console.log("Begin tracking");
                 document.body.addEventListener('htmx:sseBeforeMessage', beforeSwapHandler);
                 document.body.addEventListener('htmx:afterSwap', afterSwapHandler);
-                
                 // Save the channel data onunload
                 window.addEventListener("beforeunload", function(){
-                    sessionStorage.setItem("channel_data", JSON.stringify(channel_data));
+                    sessionStorage.setItem("channels", JSON.stringify(channels));
                 }, false);
-
-                ChannelTracker.onReady(channel_data)
+                ChannelTracker.onReady(channels);
             }
             
-            prefetchChannelData( initTracker );
+            // Get JSON chInfo from go, before we start
+            // This way we have info about all channels, and do not need to wait for "updates" to register channels.
+            prefetchChannelData( initTracker ); 
 
             return {
                 getChannel : function( channel_id ){
                     return getChannelObj( channel_id )
                 },
                 getChannelsData : function(){
-                    return channel_data;
+                    return channels;
                 }                
             }
         })();
 
 
+         // ================================================================================================
 
+
+        function trackFilesize(log_txt, ch) {
+            // Get the last line and attempt to extract filesize value
+            // This is a bit oldschool, but safe.
+            let last_line = log_txt.trim().split("\n").pop();
+            const s1 = last_line.split("filesize: ");
+            if (s1.length < 2) return null;
+
+            const firstValue = s1[1].split(" ")[0];
+            const number = !isNaN( firstValue ) ? parseFloat( firstValue ) : 0;
+            const kilobytes = Math.round(number * 1024); // Convert to KB
+            if(!kilobytes) return
+            
+            const lastEntry = ch.dataTransferTracking[ch.dataTransferTracking.length - 1];
+            
+            // Detect filesize reset ( Is file suddently lower? )
+            if (lastEntry && kilobytes < lastEntry[0] ) {
+                //console.warn("Detected filesize reset. Resetting tracking history.");
+                ch.dataTransferTracking = [];
+            }
+
+            // Trim to max length
+            if (ch.dataTransferTracking.length >= 10) ch.dataTransferTracking.shift();
+
+            // Add new entry
+            ch.dataTransferTracking.push([kilobytes, Date.now() ]);
+
+            // Calculate average throughput
+            if ( kilobytes && ch.dataTransferTracking.length > 2) {
+                const first = ch.dataTransferTracking[0];
+                const last = ch.dataTransferTracking[ch.dataTransferTracking.length - 1];
+                const deltaKB = last[0] - first[0];
+                const deltaSec = (last[1] - first[1]) / 1000;
+
+                if (deltaSec > 0) {
+                    const avgThroughputKBps = deltaKB / deltaSec;
+                    ch.avgThroughputKBps = avgThroughputKBps;
+                }
+            }
+        }
+
+        function totalThroughput() {
+            var channels = ChannelTracker.getChannelsData();
+            var total = 0;
+            Object.values(channels).forEach(function(ch) {
+                if ( ch.status === "RECORDING" && ch.avgThroughputKBps > 0 ) {
+                    total += ch.avgThroughputKBps;
+                }
+            });
+            let el = document.querySelector(".mini-badges .throughput");
+            el.innerHTML = ( total / 1024 ).toFixed( 2 ) + " MB/s";
+        }
+
+        setInterval(totalThroughput,500);
 
 
         function updateCounters() {
             const data = ChannelTracker.getChannelsData();
+            
+            // How many of each?
             const statusCounts = Object.values(data).reduce((acc, entry) => {
                 acc[entry.status] = (acc[entry.status] || 0) + 1;
                 return acc;
@@ -553,40 +590,46 @@
                 const status = match[1].toUpperCase();
                 const count = statusCounts[status];
 
-                if (count !== undefined) {
-                    var old = el.textContent
+                if ( count ) {
+                    var old = parseInt( el.textContent )
+                    var idle_opacity = .7
                     if( count > old) {
-                        gsap.fromTo(el,{ scale: 1.2, opacity: 1, },{ delay:.2,scale: 1 ,opacity:.7, duration: 1, ease: "back.out(1.3)" });
+                        gsap.fromTo(el,{ opacity: 1, },{ delay:.2, opacity:idle_opacity, duration: 1, ease: "linear" });
                     }else {
-                        gsap.fromTo(el,{ opacity: .4, },{ scale: 1 ,opacity:.7, duration: 1, ease: "back.out(1.3)" }); 
+                        gsap.fromTo(el,{ opacity: .4, },{ opacity:idle_opacity, duration: 1, ease: "linear" }); 
                     }
                     el.textContent = count;
-                    el.style.display = ""; // show it                                                              
+                    el.style.display = "";                                                              
                 } else {
-                    el.style.display = "none"; // hide it
+                    el.style.display = "none"; 
                 }
                 
             });
         }
 
+       
+
         var UpdateChannelVisuals = (function(){
-
+            // This function updates everything that needs to be updated after a channel changes its status.
+            
+            // Set status like "ch-status-offline" to channel-box, we let parent CSS rule over child elements; badge and thumbnail 
             var a_status = ["blocked", "offline", "recording", "paused", "queued"];
-
-            function setChannelBoxStatus(channel_box, channel_id, status_txt){
+            function setChannelBoxStatus(channel_box, channel){
                 a_status.forEach(status => channel_box.classList.remove( "ch-status-"+status ));
-                channel_box.classList.add( "ch-status-"+status_txt.toLowerCase() );
+                channel_box.classList.add( "ch-status-"+channel.status.toLowerCase() );
             }
             
-            return function ( channel_id, status_txt ){
-                console.log("channel_id", channel_id)
-                var channel_box = getBoxFromChannelName( channel_id );
-                channel_box.querySelector(".ch-status").innerHTML = status_txt;
-                setChannelBoxStatus( channel_box, channel_id, status_txt );
-                ListSorter.updateSort();
-                updateCounters();
+            return function ( channel ){
+                console.log("channel_id", channel.id)
+                var channel_box = getBoxFromChannelName( channel.id );
+                channel_box.querySelector(".ch-status").innerHTML = channel.status;
+                
+                setChannelBoxStatus( channel_box, channel ); // set status class to channel_box
+                ListSorter.updateSort(); // Sort list items;
+                updateCounters(); // Update counters and throughput
             }
         })();
+
 
       
         // ================================================================================================
@@ -594,9 +637,9 @@
         // DO SOMETHING WHEN STATUS CHANGE TRACKED  
 
         // This is called everytime a channel changes its status
-        ChannelTracker.onStatusUpdate = function( channel_id, status_txt ){
-            UpdateChannelVisuals( channel_id, status_txt );
-            if( cbdvr.debug ) console.log("Channel Status Updated: " + channel_id + " ["+status_txt+"]");
+        ChannelTracker.onStatusUpdate = function( channel , evt ){
+            UpdateChannelVisuals( channel, evt );
+            if( cbdvr.debug ) console.log("Channel Status Updated: " + channel.id + " ["+channel.status+"]");
         }
 
         ChannelTracker.onReady = function( channels_data ){
@@ -606,8 +649,13 @@
             Object.values(channels_data).forEach( function( ch ) {
                 if (ch.thumbAnticache) makeThumbnailUncached( ch.id, ch.thumbAnticache );
             });
-        }        
+        } 
 
+        ChannelTracker.onRecordingUpdate = function( channel, evt ){
+            trackFilesize ( evt.detail.data , channel )
+        }  
+
+       
         // ================================================================================================
         
         
@@ -757,6 +805,17 @@
             }catch(err){}
         }
     
+        function createMerged(a, b, allowExtraKeys = false) {
+            // Simply merge two objects
+            const result = Object.fromEntries( Object.keys(a).map(key => [key, Object.prototype.hasOwnProperty.call(b, key) ? b[key] : a[key]]));
+           
+            if (allowExtraKeys) {
+                // Allow objB to write properties that does not already exist in objA
+                for (const [key, value] of Object.entries(b)) { if (!result.hasOwnProperty(key)) { result[key] = value;}}
+            }
+            return result;
+        }
+
         // ================================================================================================
 
 
