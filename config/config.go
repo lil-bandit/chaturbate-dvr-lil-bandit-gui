@@ -1,6 +1,8 @@
 package config
 
 import (
+	"time"
+
 	"github.com/teacat/chaturbate-dvr/entity"
 	"github.com/urfave/cli/v2"
 )
@@ -9,6 +11,8 @@ import (
 func New(c *cli.Context) (*entity.Config, error) {
 	return &entity.Config{
 		Version:         c.App.Version,
+		AppInitTs:       time.Now().UnixMilli(),
+		WebInitTs:       time.Now().UnixMilli(),
 		Username:        c.String("username"),
 		AdminUsername:   c.String("admin-username"),
 		AdminPassword:   c.String("admin-password"),

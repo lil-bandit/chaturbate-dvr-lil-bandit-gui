@@ -1,757 +1,713 @@
 <!DOCTYPE html>
 <html lang="en" class="is-secondary">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tocas/5.0.1/tocas.min.css" />
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/tocas/5.0.1/tocas.min.js"></script>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet" />
-        <script src="/static/scripts/gsap.min.js"></script>
-        <script src="/static/scripts/htmx.min.js" crossorigin="anonymous"></script>
-        <script src="/static/scripts/sse.min.js" crossorigin="anonymous"></script>
-        <script src="/static/scripts/chaturbate-dvr.js" crossorigin="anonymous"></script>
-        <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
-        <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png">
-        <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png">
-        <link rel="manifest" href="/static/site.webmanifest">
-        <title>Chaturbate DVR</title>
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tocas/5.0.1/tocas.min.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tocas/5.0.1/tocas.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet" />
+    <script src="/static/scripts/gsap.min.js"></script>
+    <script src="/static/scripts/htmx.min.js" crossorigin="anonymous"></script>
+    <script src="/static/scripts/sse.min.js" crossorigin="anonymous"></script>
+    <script src="/static/scripts/chaturbate-dvr.js" crossorigin="anonymous"></script>
+    <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png">
+    <link rel="manifest" href="/static/site.webmanifest">
+    <title>Chaturbate DVR</title>
 
-        <style>
-            .ts-app-layout > .is-scrollable {
-                /* Force visible scrollbar, so expanding seems less jerky */
-                overflow-y: scroll !important;
-            }
+    <style>
+        :root {
+            --container-width: 990px;
+            --transition-fast: .1s linear;
+            --transition-medium: .3s linear;
+            --transition-slow: .6s ease-in-out;
+            --border-hover: 2px solid var(--ts-gray-400);
+            --glow-effect: 0 0 12px rgba(255, 255, 255, 0.1);
+            --menu-item-size: 2.3rem;
+            --thumbnail-size: 50px;
+            --thumbnail-large: 100px;
+        }
 
-            /* Title rollover */
-            .js-username-title {
-                opacity: .7; 
-                transition: opacity .1s linear;
-            } 
-            .js-username-title:hover {
-                opacity: 1; 
-            } 
-            
-            /* Not collapsed*/
-            .sse-content {
-                transition: height .6s ease-in-out , opacity .6s linear;
-                height: 370px;
-            }
+        /* Layout & Scrolling */
+        .ts-app-layout > .is-scrollable {
+            overflow-y: scroll !important;
+        }
 
-            /* Collapsed*/
-            .js-is-collapsed .sse-content {
-                height: 0px;
-                opacity: 0;
-            }
+        /* Headers & Text */
+        .js-username-title {
+            opacity: .7;
+            transition: opacity var(--transition-fast);
+        }
+        .js-username-title:hover { opacity: 1; }
 
-           .channel-menu {
-                display: flex;
-                align-items: center; /* vertically centers content */
-                justify-content: center; /* optional: horizontally center too */
-                line-height: normal; /* reset any inherited button styles */
-            }
-            
-            /* ChanneL rollover */
-			.channel-box {
-				transition: box-shadow .16s ease-out;
-				opacity: 1;
-			}
+        /* Content Transitions */
+        .sse-content {
+            transition: height var(--transition-slow), opacity var(--transition-slow);
+            height: 370px;
+        }
+        .js-is-collapsed .sse-content {
+            height: 0;
+            opacity: 0;
+        }
 
-			.channel-box.js-is-collapsed {
-				opacity: 1; /* Changed from .78 to 1 */
-			}
+        /* Channel Layout */
+        .channel-menu {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: normal;
+        }
 
-			.channel-box:hover {
-				opacity: 1;
-				border: 1px solid var(--ts-gray-400);
-				box-shadow: 0 0 12px rgba(255, 255, 255, 0.1); /* Glowing effect */
-			}
+        .channel-box {
+            transition: box-shadow .16s ease-out;
+            opacity: 1;
+        }
+        .channel-box:hover {
+            border: 1px solid var(--ts-gray-400);
+            box-shadow: var(--glow-effect);
+        }
+
+        .channel-header {
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .channel-menu-item {
+            margin-left: 1em;
+            cursor: pointer;
+            font-size: .88em !important;
+            opacity: .4;
+            border: 1px solid var(--ts-gray-400);
+            border-radius: 40px;
+            text-align: center;
+            width: var(--menu-item-size);
+            height: var(--menu-item-size);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .channel-menu-item:hover {
+            color: #afafff;
+            opacity: 1;
+            border: var(--border-hover);
+        }
+
+        /* Thumbnails */
+        .channel-thumbnail {
+            background: url('static/default_user.png') center/cover no-repeat;
+            width: var(--thumbnail-size);
+            height: var(--thumbnail-size);
+            border-radius: 100px;
+            position: relative;
+            opacity: .7;
+            border: 1px solid var(--ts-gray-400);
+        }
+
+        .channel-header .channel-thumbnail {
+            left: -4px;
+            transition: filter 1s linear, opacity var(--transition-medium);
+            filter: brightness(70%) grayscale(70%);
+        }
+
+        .channel-box:hover .channel-thumbnail,
+        .ch-status-recording .channel-thumbnail,
+        .ch-status-queued .channel-thumbnail {
+            opacity: 1;
+            filter: grayscale(0%);
+        }
+
+        #delete-confirm .channel-thumbnail {
+            width: var(--thumbnail-large);
+            height: var(--thumbnail-large);
+        }
+
+        /* Thumbnail Refresh Icon */
+        .channel-header .channel-thumbnail::after {
+            content: "\f2f1";
+            font-family: icons;
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            opacity: 0;
+            pointer-events: none;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2em;
+            color: #fff;
+        }
+
+        .ch-status-recording .channel-thumbnail:hover::after,
+        .ch-status-queued .channel-thumbnail:hover::after {
+            opacity: 0.5;
+        }
+
+        @keyframes rotate360 {
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-thumbnail .channel-thumbnail::after {
+            animation: rotate360 6s linear infinite;
+            opacity: 0.35;
+            pointer-events: none;
+        }
+
+        /* Grid Layout */
+        .ts-grid.is-3-columns.has-top-spaced-large .column {
+            flex: none;
+        }
+
+        /* Status Badges */
+        .ts-badge.ch-status {
+            padding: .7em .8em;
+            min-width: 8.8em;
+            text-align: center;
+            letter-spacing: .1em;
+            cursor: pointer;
+            user-select: none;
+            transition: color .33s ease, background-color .33s linear;
+            background-color: var(--ts-gray-200);
+            color: var(--accent-color, var(--ts-gray-800));
+        }
+
+        .ts-box.is-horizontal .column .ts-badge:hover {
+            border: var(--border-hover);
+            box-shadow: 0 0 20px 0px rgba(255,255,255,.1);
+        }
+
+        /* Mini Badges */
+        .mini-badges {
+            display: none;
+            gap: 0.8em;
+            transition: opacity 1s linear;
+            opacity: 0;
+            transform: scale(0.5);
+            transform-origin: top left;
+            margin-bottom: -21px;
+        }
+
+        .mini-badges > * {
+            height: 42px;
+        }
+
+        .mini-badges > .throughput {
+            width: auto;
+        }
+
+        .mini-badges > div {
+            display: none;
+            border-radius: 25px;
+            text-align: center;
+            border: 1px solid;
+            line-height: 1.9;
+            font-size: 1.3em;
+            letter-spacing: .1em;
+            padding-left: 0.1em;
+            transition: opacity var(--transition-fast);
+            width: 42px;
+            opacity: 0.7;
+        }
+
+        /* Status Colors */
+        .mini-badge-blocked, .ch-status-blocked .ts-badge.ch-status { background-color: rgb(114, 103, 64); color: #fff; }
+        .mini-badge-paused, .ch-status-paused .ts-badge.ch-status { background-color: rgb(134, 63, 63); color: #fff; }
+        .mini-badge-offline, .ch-status-offline .ts-badge.ch-status { background-color: var(--ts-gray-200); color: var(--ts-gray-800); }
+        .mini-badge-queued, .ch-status-queued .ts-badge.ch-status { background-color: rgb(65, 82, 104); color: #fff; }
+        .mini-badge-recording, .ch-status-recording .ts-badge.ch-status { background-color: rgb(65, 103, 87); color: #fff; }
+
+        /* Light Mode Colors */
+        @media (prefers-color-scheme: light) {
+            .mini-badge-blocked, .ch-status-blocked .ts-badge.ch-status { background-color: rgb(227, 219, 193); color: #736840; }
+            .mini-badge-paused, .ch-status-paused .ts-badge.ch-status { background-color: rgb(222, 187, 187); color: rgb(134, 63, 63); }
+            .mini-badge-queued, .ch-status-queued .ts-badge.ch-status { background-color: rgb(184, 202, 224); color: rgb(65, 82, 104); }
+            .mini-badge-recording, .ch-status-recording .ts-badge.ch-status { background-color: rgb(200, 230, 218); color: rgb(65, 103, 87); }
+        }
+
+        /* Demo Mode */
+        .blur-for-demo .channel-thumbnail,
+        .blur-for-demo .js-username-title {
+            filter: blur(3px);
+        }
+
+        /* Debug Window */
+        #log-window {
+            width: 300px;
+            height: 200px;
+            background: #222;
+            padding: 10px;
+            position: absolute;
+            top: 100px;
+            left: 100px;
+            font-family: monospace;
+            border: 2px solid rgb(94, 105, 94);
+            z-index: 9999;
+            display: none;
+            resize: both;
+            overflow: auto;
+        }
+
+        #log-window .ts-app-topbar {
+            cursor: move;
+        }
+
+        #js-debug {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        #js-debug div {
+            font-weight: bold;
+            display: inline-block;
+            padding: .2em;
+        }
+
+        #dev-menu {
+            top: 0;
+            right: .6em;
+            z-index: 99;
+        }
+
+        .debug #log-window {
+            display: block;
+        }
 
 
-            .channel-header {
-                cursor: pointer;
-                user-select: none;
-                -webkit-user-select: none;
-                -ms-user-select: none; 
-                             
-            }
+        .status-bar {
+            position: relative;
+            align-items: center;
+            background-color: var(--ts-page-background-secondary) !important;
+            box-shadow: 0px 15px 15px rgba(0, 0, 0, .1);
+            font-size: .9em;
+            position: relative;
+            z-index: 1;
+            padding: 0.5em .7em;
+            color: var(--ts-gray-500);
+            border-bottom: 1px solid var(--ts-gray-100);
+            background: #232323;
+            border-top: 1px solid rgba(119, 119, 119, 0.2);            
+        }
+        .status-bar .column {
+            opacity:.6;
+        }     
+        .status-bar .ts-switch input:checked::after {
+            background: var(--ts-dark-gray-300);
+        }
 
+        .status-bar:hover .ts-switch input:checked::after {
+            background-color: var(--accent-color, var(--ts-primary-700)) !important;
+        }   
 
+        .blink {
+            animation: blink .6s step-start 0s infinite;
+            transition: opacity .2s linear;
+        }
 
+        @keyframes blink {
+        50% {
+            opacity: 0;
+        }
+        }
 
-            .channel-menu-item {
-                margin-left: 1em;
-                cursor: pointer;
-                font-size: .88em !important;
-                opacity: .4;
-                border: 1px solid var(--ts-gray-400);
-                border-radius: 40px;
-                text-align: center;
-                width: 2.3rem;
-                height: 2.3rem;
-                display: flex;
-                justify-content: center;
-                align-items: center;                
-            }
-
-
-
-            .channel-menu-item:hover {
-                color: #afafff;
-                opacity: 1;
-                border: 2px solid var(--ts-gray-400);
-            }
-
-            /* Thumbnail */
-
-            .channel-thumbnail {
-                background-image: url('static/default_user.png');
-                background-size: cover;
-                background-repeat: no-repeat;
-                background-position: center;
-                width: 50px;
-                height: 50px;           
-                border-radius: 100px;
-                position: relative;
-                opacity: .7;
-                border: 1px solid var(--ts-gray-400);
-                
-            }
-            
-            .channel-header .channel-thumbnail { 
-                left:-4px;
-                transition: filter 1s linear, opacity 0.3s linear;
-                filter: brightness(70%)  grayscale(70%);
-                opacity: .7;
-            }
-
-            .channel-box:hover .channel-thumbnail {
-                opacity: 1; 
-                filter: grayscale(0%);  
-            }              
-
-            .ch-status-recording .channel-thumbnail , .ch-status-queued .channel-thumbnail {
-                opacity: 1;     
-                filter: grayscale(0%);         
-            }
-
-            #delete-confirm .channel-thumbnail {
-                width: 100px;
-                height: 100px;           
-            }
-
-            /* Refresh thumbnail arrow */
-            .channel-header .channel-thumbnail::after {
-                content: "\f2f1";
-                font-family: icons;
-                position: absolute;
-                inset: 0;
-                background: rgba(0, 0, 0, 0.5);
-                opacity: 0;
-                pointer-events: none;
-                border-radius: 50%;
-                width: 100%; height: 100%;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 2em; 
-                color: #fff;    
-            }
-          
-            
- 
-            .ch-status-recording .channel-thumbnail:hover::after , .ch-status-queued .channel-thumbnail:hover::after {
-                opacity: 0.5; 
-            }            
-            
-
-            @keyframes rotate360 {
-                100% { transform: rotate(360deg); }
-            }
-            
-            /* Refresh thumbnail arrow animation*/
-            .loading-thumbnail .channel-thumbnail {
-                /* background-image: none !important; */
-                pointer-events: none;
-            }
-
-            .loading-thumbnail .channel-thumbnail::after {
-                animation: rotate360 6s linear infinite;
-                opacity: 0.35; 
-                pointer-events: none;
-            } 
-
-            /*
-            .ts-box.is-horizontal .column .ts-badge:hover {
-                background-color: rgba(0,0,0,0);
-                color: #afafff;
-                border: 1px solid var(--ts-gray-400);
-            }  
-            */          
-            
-            /* Left align channel buttons in expanded view */ 
-            .ts-grid.is-3-columns.has-top-spaced-large .column{
-                flex: none;
-            }
-            
-
-            /* Status badge */
-
-            .ts-badge.ch-status {
-                padding: .7em .7em;
-                padding-left: .8em;
-                min-width: 8.8em;
-                text-align: center;
-                letter-spacing: .1em;
-                cursor: pointer;
-                user-select: none;
-                -ms-user-select: none; 
-                -webkit-user-select: none;
-                transition: color .33s ease, background-color .33s linear;
-
-            }
-
-            .ts-box.is-horizontal .column .ts-badge:hover {
-                border: 2px solid rgba(211, 211, 211,.5);
-                box-shadow: 0 0 20px 0px rgba(255,255,255,.1);
-            } 
-
-
-            .ts-badge.ch-status {
-                background-color: var(--ts-gray-200);
-                color: var(--accent-color, var(--ts-gray-800));
-            }
-
-            /*.mini-badges{
-                gap: 0.4em;
-                transition: opacity 1s linear;
-                opacity: 0;
-            } 
-            .mini-badges > * {
-                width: 21px;
-                height: 21px;
-                opacity: .7;
-            }*/
-            .mini-badges > .throughput {
-                width:auto;
-            }
-            .mini-badges > * {
-                height: 42px;
-                /*To have height , when all badges have display:none 🤷‍♂️ */
-            }
-            .mini-badges {
-                gap: 0.8em;
-                transition: opacity 1s linear;
-                opacity: 0;
-                transform: scale(0.5); 
-                transform-origin: top left;
-                margin-bottom:-21px;
-            }
-
-           .mini-badges > div {
-                border-radius: 25px;
-                text-align: center;
-                border: 1px solid;
-                line-height: 1.9;
-                font-size: 1.3em;
-                letter-spacing: .1em;
-                padding-left: 0.1em;
-                transition: opacity .1s linear;
-                width: 42px;
-                height: 42px;
-                opacity: 0.7;              
-           }
-
-            .mini-badges .mini-badge-blocked {
-                background-color: rgb(114, 103, 64);
-                color: #fff;
-            }
-            .mini-badges .mini-badge-paused {
-                background-color: rgb(134, 63, 63);
-                color: #fff;
-            }
-            .mini-badges .mini-badge-offline {
-                background-color: var(--ts-gray-200);
-                color: var(--ts-gray-800);
-            }
-            .mini-badges .mini-badge-queued {
-                background-color: rgb(65, 82, 104);
-                color: #fff;
-            }
-            .mini-badges .mini-badge-recording {
-                background-color: rgb(65, 103, 87);
-                color: #fff;
-            }
-
-            @media (prefers-color-scheme: light) {
-                .mini-badge-blocked {
-                    background-color: rgb(227, 219, 193);
-                    color: #736840;
-                }
-                .mini-badge-paused {
-                    background-color: rgb(222, 187, 187);
-                    color: rgb(134, 63, 63);
-                }
-                .mini-badge-offline {
-                    background-color: var(--ts-gray-200);
-                    color: var(--ts-gray-800);
-                }
-                .mini-badge-queued {
-                    background-color: rgb(184, 202, 224);
-                    color: rgb(65, 82, 104);
-                }
-                .mini-badge-recording {
-                    background-color: rgb(200, 230, 218);
-                    color: rgb(65, 103, 87);
-                }
-            }
-
-            .ch-status-offline .ts-badge.ch-status     { background-color: var(--ts-gray-200);}
-            .ch-status-paused .ts-badge.ch-status      { background-color: rgb(134, 63, 63);}
-            .ch-status-blocked .ts-badge.ch-status     { background-color: #736840;}
-            .ch-status-queued .ts-badge.ch-status      { background-color: rgb(65, 82, 104);}               
-            .ch-status-recording .ts-badge.ch-status   { background-color: rgb(65, 103, 87);}
-
-            @media (prefers-color-scheme: light) {
-                .ch-status-offline .ts-badge.ch-status     { background-color: var(--ts-gray-200);}
-                .ch-status-paused .ts-badge.ch-status      { background-color: rgb(222, 187, 187);}
-                .ch-status-blocked .ts-badge.ch-status     { background-color: #e3dbc1;}
-                .ch-status-queued .ts-badge.ch-status      { background-color: rgb(184, 202, 224);}
-                .ch-status-recording .ts-badge.ch-status   { background-color: rgb(200, 230, 218);}
-            }
-
-            /* Blur for screenshots */
-            .blur-for-demo .channel-thumbnail, .blur-for-demo .js-username-title {
-                filter: blur(3px);
-            }
-
-            /* Debug - Logwindow */
-
-            #log-window {
-                width: 300px;
-                height: 200px;
-                background: #222;
-                padding: 10px;
-                position: absolute;
-                top: 100px;
-                left: 100px;
-                
-                font-family: monospace;
-                border: 2px solid rgb(94, 105, 94);
-                z-index: 9999;
-                display: none;
-                resize: both;
-                overflow: auto;                
-            }
-
-            #log-window .ts-app-topbar {
-                cursor: move;
-            }
-            
-            #js-debug { 
-                position: absolute;
-                top:0; left:0;
-            }
-            #js-debug div{
-                font-weight: bold;
-                display: inline-block;
-                padding:.2em;
-            }
-            #dev-menu {
-                top:0; right:.6em;
-                z-index: 99;
-            }
-            .debug #log-window { 
-                display:block;
-            }
-                        
-        </style>
-    </head>
-
-    <body hx-ext="sse">
-
-        <div class="ts-app-layout is-fullscreen is-vertical">
-            <!-- Fixed Header -->
-            <div class="cell" style="padding:40px 0px">
-                <div class="ts-bar is-horizontal is-dense is-fixed">
-                    <div class="ts-container" style="padding: 0 2em 0 1em; --width: 990px">
-
-                        <div class="ts-grid is-bottom-aligned">
-                            <div class="column is-fluid">
-                                <div class="ts-header is-huge is-uppercased is-heavy has-leading-small">Chaturbate DVR</div>
-                                <div class="ts-text is-description is-bold">VERSION {{ .Config.Version }} / lil-bandit v0.07.1 🎈</div>
-                                <div class="ts-grid is-bottom-aligned has-top-spaced-small mini-badges">
-                                    <div class="column mini-badge-paused"       style="display: none;">12</div>
-                                    <div class="column mini-badge-offline"      style="display: none;">5</div>
-                                    <div class="column mini-badge-queued"       style="display: none;">32</div>
-                                    <div class="column mini-badge-recording"    style="display: none;">32</div>
-                                    <div class="column mini-badge-blocked"      style="display: none;">32</div>
-                                    <div class="column has-horizontally-padded throughput"></div>
-                                    <span class="column is-fluid"></span>
-                                </div>                                
+        .lil-bandit-balloon:hover {
+            opacity:1;
+        }          
+        .lil-bandit-balloon {
+            transition: filter 3s ease-out;
+            user-select: none;
+            opacity:.8;
+            filter: drop-shadow(7px 6px 2px rgba(0, 0, 0, 0.2));
+        }
+        .lil-bandit-balloon.animating {
+            transition: filter 6s ease-in;
+            filter: drop-shadow(0px 50px 20px rgba(0, 0, 0, 0.4));
+        }        
+    </style>
+</head>
+<body hx-ext="sse">
+    
+    <div class="ts-app-layout is-fullscreen is-vertical">
+        <!-- Fixed Header -->
+        <div class="cell" style="padding:40px 0px; border-bottom:0;">
+            <div class="ts-bar is-horizontal is-dense is-fixed">
+                <div class="ts-container" style="padding: 0 2em 0 1em; --width: var(--container-width)">
+                    <div class="ts-grid is-bottom-aligned">
+                        <div class="column is-fluid">
+                            <div class="ts-header is-huge is-uppercased is-heavy has-leading-small">Chaturbate DVR</div>
+                            <div class="ts-text is-description is-bold">VERSION {{ .Config.Version }} / lil-bandit v0.07.1 <div class="lil-bandit-balloon" style="display:inline-block;font-size:120%">🎈</div></div>
+                            <div class="ts-grid is-bottom-aligned has-top-spaced-small mini-badges">
+                                <div class="column mini-badge-paused" style="display: none;">12</div>
+                                <div class="column mini-badge-offline" style="display: none;">5</div>
+                                <div class="column mini-badge-queued" style="display: none;">32</div>
+                                <div class="column mini-badge-recording" style="display: none;">32</div>
+                                <div class="column mini-badge-blocked" style="display: none;">32</div>
+                                <div class="column has-horizontally-padded throughput"></div>
+                                <span class="column is-fluid"></span>
                             </div>
-
-                            <div class="column" style="display:none">
-                                <div id="dev-menu ">
-                                    <div class="is-pilled ts-button is-outlined" style="min-width:40px">
-                                        <button class="item" data-dropdown="dropdown-links">
-                                            <span class="ts-icon is-ellipsis-icon"></span>
-                                        </button>
-                                    </div>
-                                                                
-                                    <div class="ts-dropdown" id="dropdown-links">
-                                        <button class="menu-export-as-csv item">Export channelnames as CSV</button>
-                                        <button class="menu-enable-debug item">Enable debug</button>
-                                    </div> 
+                        </div>
+                        <div class="column" style="display:none">
+                            <div id="dev-menu">
+                                <div class="is-pilled ts-button is-outlined" style="min-width:40px">
+                                    <button class="item" data-dropdown="dropdown-links">
+                                        <span class="ts-icon is-ellipsis-icon"></span>
+                                    </button>
+                                </div>
+                                <div class="ts-dropdown" id="dropdown-links">
+                                    <button class="menu-export-as-csv item">Export channelnames as CSV</button>
+                                    <button class="menu-enable-debug item">Enable debug</button>
                                 </div>
                             </div>
-
-                            <div class="column">
-                                <button class="ts-button is-start-icon is-outlined" data-dialog="settings-dialog">
-                                    <span class="ts-icon is-gear-icon"></span>
-                                    Settings
-                                </button>
-                            </div>
-
-                            <div class="column">
-                                <button class="ts-button is-start-icon" data-dialog="create-dialog">
-                                    <span class="ts-icon is-plus-icon"></span>
-                                    Add Channel
-                                </button>
-                            </div>
-                            
                         </div>
-                    </div>
-                </div>
-            </div>
-            <!-- / Fixed Header -->
-
-            <!-- Main Section -->
-            <div class="cell is-secondary is-fluid is-scrollable">
-                <div class="ts-container has-vertically-padded" style="--width: 990px;">
-                    <!-- Main content -->
-                    {{ if not .Channels }}
-                    <!-- Blankslate -->
-                    <div class="ts-divider has-vertically-spaced-large"></div>
-                    <div class="ts-blankslate">
-                        <span class="ts-icon is-eye-low-vision-icon"></span>
-                        <div class="header">No channels are currently recording</div>
-                        <div class="description">Add a new Chaturbate channel to start recording.</div>
-                        <div class="action">
+                        <div class="column">
+                            <button class="ts-button is-start-icon is-outlined" data-dialog="settings-dialog">
+                                <span class="ts-icon is-gear-icon"></span>
+                                Settings
+                            </button>
+                        </div>
+                        <div class="column">
                             <button class="ts-button is-start-icon" data-dialog="create-dialog">
                                 <span class="ts-icon is-plus-icon"></span>
                                 Add Channel
                             </button>
                         </div>
                     </div>
-                    <!-- / Blankslate -->
-                    {{ else }}
-
-                    <!-- Channels -->
-                    <div class="ts-wrap is-vertical has-top-spaced-large" sse-connect="/updates?stream=updates">
-                        {{ range .Channels }}
-                        
-                        <div class="ts-box is-horizontal js-is-collapsed channel-box {{.Username}} ch-status-{{ if .IsPaused }}paused{{ else if .IsBlocked }}blocked{{ else if .IsDownPrioritized }}queued{{ else if .IsOnline }}recording{{ else }}offline{{ end }}" channel-id="{{.Username}}">
-                            <div class="ts-content is-middle-aligned " style="flex:1">
-                                
-                                <!-- Channel Header Section -->
-                                <div class="ts-grid is-middle-aligned has-horizontally-padded channel-header">
-                                    <div class="ts-image is-circular channel-thumbnail" title="Click to update thumbnail, channel needs to be online ( CTRL+SHIFT+R to clear image cache )" style="background-image: url('./channel-images/{{.Username}}.jpg'), url('static/default_user.png');"></div> 
-                                    <div class="column is-fluid">
-                                        <div class="ts-header js-username-title">{{ .Username }}</div>
-                                    </div>
-                                    <!-- channel-menu --> 
-                                    <div class="channel-menu column">
-                                        <div title="Open channel in browser" class="channel-menu-item ts-icon btn-openweb">&#xf35d;</div>
-                                        <div title="Edit channel" class="channel-menu-item ts-icon is-gear-icon btn-edit"></div>
-                                        <div title="Delete channel"  class="channel-menu-item ts-icon is-trash-icon btn-delete"></div>
-                                    </div>
-                                    <!-- / channel-menu -->     
-                                    <div class="column">
-                                        {{ if .IsPaused }}
-                                            <span class="ts-badge is-negative is-small is-start-spaced ch-status" title="Click to resume channel">PAUSED</span>
-                                        {{ else if .IsBlocked }}
-                                            <span class="ts-badge is-secondary is-small is-start-spaced ch-status" title="Click to pause channel">BLOCKED</span>
-                                        {{ else if .IsDownPrioritized }}
-                                            <span class="ts-badge is-secondary is-small is-start-spaced ch-status" title="Click to pause channel">QUEUED</span> 
-                                        {{ else if .IsOnline }}
-                                            <span class="ts-badge is-small is-negative is-start-spaced ch-status" title="Click to pause channel">RECORDING</span>
-                                        {{ else }}            
-                                            <span class="ts-badge is-secondary is-small is-start-spaced ch-status" title="Click to pause channel">OFFLINE</span>
-                                        {{ end }}
-                                    </div>
-                                </div>
-                                <!-- / Channel Header Section -->
-                                
-                                <!-- SSE content -->
-                                <div style="display: flex;" class="sse-content">
-                                    
-                                    <!-- Info Section -->
-                                    <div>
-                                        <div sse-swap="{{ .Username }}-info" class="ts-content has-break-all" style="width: 400px; line-height: 1.45; padding-right: 0">
-                                        {{ template "channel_info" . }}
-                                        </div> 
-                                    </div>
-                                    <!-- / Info Section -->
-
-                                    <!-- Log Section -->
-                                    <div style="flex: 1; display: flex;">
-                                        <div class="ts-content" style="margin-left:10px; flex: 1;gap: 0.8rem; display: flex; flex-direction: column;  font-size: 12px;">
-                                            <div class="ts-input" style="flex:1" >
-                                                <textarea class="has-full-height" readonly sse-swap="{{ .Username }}-log" style="font-size: 1em; scrollbar-width: thin">{{ range .Logs }}{{ . }}&NewLine;{{ end }}</textarea>
-                                            </div>
-                                            <div>
-                                                <label class="ts-switch is-small" style="display: flex">
-                                                    <input type="checkbox" checked />
-                                                    Auto-Update & Scroll Logs
-                                                </label>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <!-- / Log Section -->
-
-                                </div>
-                                <!-- / SSE content -->
-
-                            </div>
-                        </div>
-                        
-                        {{ end }}
-                    </div>
-                    <!-- / Channels -->
-                    {{ end }}
                 </div>
             </div>
-            <!-- / Main Section -->
         </div>
 
-        <!-- Settings Dialog -->
-        <dialog id="settings-dialog" class="ts-modal" style="--width: 700px">
-            <div class="content">
-                <form action="/update_config" method="POST">
-                    <div class="ts-content is-horizontally-padded is-secondary">
-                        <div class="ts-grid">
-                            <div class="column is-fluid">
-                                <div class="ts-header">Settings</div>
-                            </div>
-                            <div class="column">
-                                <button type="reset" class="ts-close is-rounded is-large is-secondary" data-dialog="settings-dialog"></button>
-                            </div>
+   <!-- Status Bar -->
+        <div class="cell status-bar top"style="border-bottom: 1px solid var(--ts-gray-100);">
+            <div class="ts-bar is-horizontal is-dense">
+                <div class="ts-container" style="padding: 0 2em 0 1em; --width: var(--container-width)">
+                    <div class="ts-grid is-bottom-aligned">
+                        <div class="column">
+                        <label class="ts-switch is-small" style="display: flex">
+                            <input id="auto-sort-toggle" type="checkbox" checked="">
+                            Auto-Sort
+                        </label>
+                        </div>
+                                           
+                        <div class="column is-fluid">
+                            
+
+                            
+                        </div>
+       
+                        <div class="column">
+                            
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+ <!-- / Status Bar -->
 
-                    <div class="ts-divider"></div>
+     
+     
+    
+   
 
-                    <div class="ts-content is-vertically-padded">
-                        <!-- Cookies -->
-                        <div class="ts-control is-wide">
-                            <div class="label">Cookies</div>
-                            <div class="content">
-                                <div class="ts-input">
-                                    <textarea name="cookies" rows="5">{{ .Config.Cookies }}</textarea>
-                                </div>
-                                <div class="ts-text is-description has-top-spaced-small">Use semicolons to separate multiple cookies, e.g., "key1=value1; key2=value2". See <a class="ts-text is-link" href="https://github.com/teacat/chaturbate-dvr/?tab=readme-ov-file#-cookies--user-agent" target="_blank">README</a> for details.</div>
-                            </div>
-                        </div>
-                        <!-- / Cookies -->
-
-                        <!-- User Agent -->
-                        <div class="ts-control is-wide has-top-spaced-large">
-                            <div class="label">User Agent</div>
-                            <div class="content">
-                                <div class="ts-input">
-                                    <textarea name="user_agent" rows="5">{{ .Config.UserAgent }}</textarea>
-                                </div>
-                                <div class="ts-text is-description has-top-spaced-small">User-Agent can be found using tools like <a class="ts-text is-link" href="https://www.whatismybrowser.com/detect/what-is-my-user-agent/" target="_blank">WhatIsMyBrowser</a>.<br>Insert <i>this</i> browsers User-Agent <a class="ts-text is-link" href="#" onclick="cbdvr.insertUserAgent()">Click here</a></div>
-                            </div>
-                        </div>
-                        <!-- / User Agent -->
+        <!-- Main Section -->
+        <div class="cell is-secondary is-fluid is-scrollable">
+            <div class="ts-container has-vertically-padded" style="--width: var(--container-width);">
+                {{ if not .Channels }}
+                <!-- Blankslate -->
+                <div class="ts-divider has-vertically-spaced-large"></div>
+                <div class="ts-blankslate">
+                    <span class="ts-icon is-eye-low-vision-icon"></span>
+                    <div class="header">No channels are currently recording</div>
+                    <div class="description">Add a new Chaturbate channel to start recording.</div>
+                    <div class="action">
+                        <button class="ts-button is-start-icon" data-dialog="create-dialog">
+                            <span class="ts-icon is-plus-icon"></span>
+                            Add Channel
+                        </button>
                     </div>
+                </div>
+                {{ else }}
+                <!-- Channels -->
+                <div class="ts-wrap is-vertical has-top-spaced-large" sse-connect="/updates?stream=updates">
+                    {{ range .Channels }}
+                    <div class="ts-box is-horizontal js-is-collapsed channel-box {{.Username}} ch-status-{{ if .IsPaused }}paused{{ else if .IsBlocked }}blocked{{ else if .IsDownPrioritized }}queued{{ else if .IsOnline }}recording{{ else }}offline{{ end }}" channel-id="{{.Username}}">
+                        <div class="ts-content is-middle-aligned" style="flex:1">
+                            <!-- Channel Header -->
+                            <div class="ts-grid is-middle-aligned has-horizontally-padded channel-header">
+                                <div class="ts-image is-circular channel-thumbnail" title="Click to update thumbnail, channel needs to be online ( CTRL+SHIFT+R to clear image cache )" style="background-image: url('./channel-images/{{.Username}}.jpg'), url('static/default_user.png');"></div>
+                                <div class="column is-fluid">
+                                    <div class="ts-header js-username-title">{{ .Username }}</div>
+                                </div>
+                                <div class="channel-menu column">
+                                    <div title="Open channel in browser" class="channel-menu-item ts-icon btn-openweb">&#xf35d;</div>
+                                    <div title="Edit channel" class="channel-menu-item ts-icon is-gear-icon btn-edit"></div>
+                                    <div title="Delete channel" class="channel-menu-item ts-icon is-trash-icon btn-delete"></div>
+                                </div>
+                                <div class="column">
+                                    {{ if .IsPaused }}
+                                        <span class="ts-badge is-negative is-small is-start-spaced ch-status" title="Click to resume channel">PAUSED</span>
+                                    {{ else if .IsBlocked }}
+                                        <span class="ts-badge is-secondary is-small is-start-spaced ch-status" title="Click to pause channel">BLOCKED</span>
+                                    {{ else if .IsDownPrioritized }}
+                                        <span class="ts-badge is-secondary is-small is-start-spaced ch-status" title="Click to pause channel">QUEUED</span>
+                                    {{ else if .IsOnline }}
+                                        <span class="ts-badge is-small is-negative is-start-spaced ch-status" title="Click to pause channel">RECORDING</span>
+                                    {{ else }}
+                                        <span class="ts-badge is-secondary is-small is-start-spaced ch-status" title="Click to pause channel">OFFLINE</span>
+                                    {{ end }}
+                                </div>
+                            </div>
 
-
-                    <!-- MaxConnections Options -->
-                    <div class="ts-control is-wide has-top-spaced">
-                        <div class="label">Max. Connections</div>
-                        <div class="content">
-                            <div class="ts-content is-padded is-secondary">
-                                <div class="ts-grid is-relaxed is-2-columns">
-                                    <div class="column">
-                                        <!--<div class="ts-text is-bold">MaxConnections</div>-->
-                                        <div class="ts-input is-end-labeled has-top-spaced-small">
-                                            <input type="number" name="max_connections" value="{{ .Config.MaxConnections }}" />
-                                            <span class="label">Connections</span>
+                            <!-- SSE Content -->
+                            <div style="display: flex;" class="sse-content">
+                                <!-- Info Section -->
+                                <div>
+                                    <div sse-swap="{{ .Username }}-info" class="ts-content has-break-all" style="width: 400px; line-height: 1.45; padding-right: 0">
+                                        {{ template "channel_info" . }}
+                                    </div>
+                                </div>
+                                <!-- Log Section -->
+                                <div style="flex: 1; display: flex;">
+                                    <div class="ts-content" style="margin-left:10px; flex: 1;gap: 0.8rem; display: flex; flex-direction: column; font-size: 12px;">
+                                        <div class="ts-input" style="flex:1">
+                                            <textarea class="has-full-height" readonly sse-swap="{{ .Username }}-log" style="font-size: 1em; scrollbar-width: thin">{{ range .Logs }}{{ . }}&NewLine;{{ end }}</textarea>
+                                        </div>
+                                        <div>
+                                            <label class="ts-switch is-small" style="display: flex">
+                                                <input type="checkbox" checked />
+                                                Auto-Update & Scroll Logs
+                                            </label>
                                         </div>
                                     </div>
                                 </div>
-                                <div class="ts-text is-description has-top-spaced">This will limit the amount of simultaneous recordings. The recordings will be queued after <i>priority</i> if maximum has been reached</div>
                             </div>
                         </div>
                     </div>
-                    <!-- / MaxConnections Options -->
+                    {{ end }}
+                </div>
+                {{ end }}
+            </div>
+        </div>
+        <!-- Status Bar -->
+        <div class="cell status-bar" style="padding-bottom: 6px;">
+            <div class="is-horizontal">
+                <div class="" >
+                    <div class="ts-grid is-bottom-aligned">
+                        <div class="column is-fluid">
+                            <span class="activity-indicator" style="width: 7px;height: 7px;background: white;display: inline-block;border-radius: 100px;margin-right: 5px;"></span>
+                            <span class="recording-info"></span>
 
-                    <!-- Minimum Filesize Options -->
+                        </div>                        
+                        <div class="column">
+
+                        </div>
+                        <div class="column">
+                        <span id="system-clock"></span>
+                        </div>
+                        <div class="column">
+                            🪲
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    <!-- / Status Bar -->
+
+    <!-- Settings Dialog -->
+    <dialog id="settings-dialog" class="ts-modal" style="--width: 700px">
+        <div class="content">
+            <form action="/update_config" method="POST">
+                <div class="ts-content is-horizontally-padded is-secondary">
+                    <div class="ts-grid">
+                        <div class="column is-fluid">
+                            <div class="ts-header">Settings</div>
+                        </div>
+                        <div class="column">
+                            <button type="reset" class="ts-close is-rounded is-large is-secondary" data-dialog="settings-dialog"></button>
+                        </div>
+                    </div>
+                </div>
+                <div class="ts-divider"></div>
+                <div class="ts-content is-vertically-padded">
+                    <!-- Cookies -->
+                    <div class="ts-control is-wide">
+                        <div class="label">Cookies</div>
+                        <div class="content">
+                            <div class="ts-input">
+                                <textarea name="cookies" rows="5">{{ .Config.Cookies }}</textarea>
+                            </div>
+                            <div class="ts-text is-description has-top-spaced-small">Use semicolons to separate multiple cookies, e.g., "key1=value1; key2=value2". See <a class="ts-text is-link" href="https://github.com/teacat/chaturbate-dvr/?tab=readme-ov-file#-cookies--user-agent" target="_blank">README</a> for details.</div>
+                        </div>
+                    </div>
+                    <!-- User Agent -->
+                    <div class="ts-control is-wide has-top-spaced-large">
+                        <div class="label">User Agent</div>
+                        <div class="content">
+                            <div class="ts-input">
+                                <textarea name="user_agent" rows="5">{{ .Config.UserAgent }}</textarea>
+                            </div>
+                            <div class="ts-text is-description has-top-spaced-small">User-Agent can be found using tools like <a class="ts-text is-link" href="https://www.whatismybrowser.com/detect/what-is-my-user-agent/" target="_blank">WhatIsMyBrowser</a>.<br>Insert <i>this</i> browsers User-Agent <a class="ts-text is-link" href="#" onclick="cbdvr.insertUserAgent()">Click here</a></div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Max Connections -->
+                <div class="ts-control is-wide has-top-spaced">
+                    <div class="label">Max. Connections</div>
+                    <div class="content">
+                        <div class="ts-content is-padded is-secondary">
+                            <div class="ts-grid is-relaxed is-2-columns">
+                                <div class="column">
+                                    <div class="ts-input is-end-labeled has-top-spaced-small">
+                                        <input type="number" name="max_connections" value="{{ .Config.MaxConnections }}" />
+                                        <span class="label">Connections</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="ts-text is-description has-top-spaced">This will limit the amount of simultaneous recordings. The recordings will be queued after <i>priority</i> if maximum has been reached</div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Min Filesize -->
+                <div class="ts-control is-wide has-top-spaced">
+                    <div class="label">Min Filesize</div>
+                    <div class="content">
+                        <div class="ts-content is-padded is-secondary">
+                            <div class="ts-grid is-relaxed is-2-columns">
+                                <div class="column">
+                                    <div class="ts-input is-end-labeled has-top-spaced-small">
+                                        <input type="number" name="min_filesize" value="{{ .Config.MinFilesize }}" />
+                                        <span class="label">MB</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="ts-text is-description has-top-spaced">If a recording is smaller than this size limit, it will be deleted</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="ts-divider has-top-spaced"></div>
+                <div class="ts-content is-secondary is-horizontally-padded">
+                    <div class="ts-grid is-middle-aligned">
+                        <div class="column is-fluid">
+                            <div class="ts-checkbox is-description">
+                                <input type="checkbox" id="persist-changes" name="persist_settings" style="vertical-align:middle; margin-right:6px;" {{ if .Config.PersistSettings }}checked{{ end }}>
+                                <label for="persist-changes" style="vertical-align:middle;">Make settings persistent</label>
+                            </div>
+                        </div>
+                        <div class="column">
+                            <button type="reset" class="ts-button is-outlined is-secondary" data-dialog="settings-dialog">Cancel</button>
+                        </div>
+                        <div class="column">
+                            <button type="submit" class="ts-button is-primary">Apply</button>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </dialog>
+
+    <!-- Create Dialog -->
+    <dialog id="create-dialog" class="ts-modal" style="--width: 680px">
+        <div class="content">
+            <form action="/create_channel" method="POST">
+                <input type="hidden" id="edit-flag" name="edit" value="false" />
+                <div class="ts-content is-horizontally-padded is-secondary">
+                    <div class="ts-grid">
+                        <div class="column is-fluid">
+                            <div class="ts-header">Add Channel</div>
+                        </div>
+                        <div class="column">
+                            <button type="reset" class="ts-close is-rounded is-large is-secondary" data-dialog="create-dialog"></button>
+                        </div>
+                    </div>
+                </div>
+                <div class="ts-divider"></div>
+                <div class="ts-content is-vertically-padded">
+                    <!-- Channel Username -->
+                    <div class="ts-control is-wide">
+                        <div class="label">Channel Username</div>
+                        <div class="content">
+                            <div class="ts-input is-start-labeled">
+                                <div class="label">{{ .Config.Domain }}</div>
+                                <input type="text" id="username-input" name="username" autofocus required />
+                            </div>
+                            <div class="ts-text is-description has-top-spaced-small">Use commas to separate multiple channel names, e.g. "channel1, channel2, channel3".</div>
+                        </div>
+                    </div>
+                    <!-- Resolution -->
+                    <div class="ts-control is-wide has-top-spaced-large">
+                        <div class="label">Resolution</div>
+                        <div class="content">
+                            <div class="ts-select">
+                                <select name="resolution">
+                                    <option value="2160" {{ if eq .Config.Resolution 2160 }}selected{{ end }}>4K</option>
+                                    <option value="1440" {{ if eq .Config.Resolution 1440 }}selected{{ end }}>2K</option>
+                                    <option value="1080" {{ if eq .Config.Resolution 1080 }}selected{{ end }}>1080p</option>
+                                    <option value="720" {{ if eq .Config.Resolution 720 }}selected{{ end }}>720p</option>
+                                    <option value="540" {{ if eq .Config.Resolution 540 }}selected{{ end }}>540p</option>
+                                    <option value="480" {{ if eq .Config.Resolution 480 }}selected{{ end }}>480p</option>
+                                    <option value="240" {{ if eq .Config.Resolution 240 }}selected{{ end }}>240p</option>
+                                </select>
+                            </div>
+                            <div class="ts-text is-description has-top-spaced-small">The lower resolution will be used if the selected resolution is not available.</div>
+                        </div>
+                    </div>
+                    <!-- Framerate -->
+                    <div class="ts-control is-wide has-top-spaced-large">
+                        <div class="label">Framerate</div>
+                        <div class="content is-padded">
+                            <div class="ts-wrap is-compact is-vertical">
+                                <label class="ts-radio">
+                                    <input type="radio" name="framerate" value="60" {{ if eq .Config.Framerate 60 }}checked{{ end }} />
+                                    60 FPS (or lower)
+                                </label>
+                                <label class="ts-radio">
+                                    <input type="radio" name="framerate" value="30" {{ if eq .Config.Framerate 30 }}checked{{ end }} />
+                                    30 FPS
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Filename Pattern -->
+                    <div class="ts-control is-wide has-top-spaced-large">
+                        <div class="label">Filename Pattern</div>
+                        <div class="content">
+                            <div class="ts-input">
+                                <input type="text" name="pattern" value="{{ .Config.Pattern }}" />
+                            </div>
+                            <div class="ts-text is-description has-top-spaced-small">
+                                See the <a class="ts-text is-external-link is-link" href="https://github.com/teacat/chaturbate-dvr" target="_blank">README</a> for details.
+                            </div>
+                        </div>
+                    </div>
+                    <div class="ts-divider has-vertically-spaced-large"></div>
+                    <!-- Splitting Options -->
                     <div class="ts-control is-wide has-top-spaced">
-                        <div class="label">Min Filesize</div>
+                        <div class="label">Splitting Options</div>
                         <div class="content">
                             <div class="ts-content is-padded is-secondary">
                                 <div class="ts-grid is-relaxed is-2-columns">
                                     <div class="column">
-                                       
+                                        <div class="ts-text is-bold">Max Filesize</div>
                                         <div class="ts-input is-end-labeled has-top-spaced-small">
-                                            <input type="number" name="min_filesize" value="{{ .Config.MinFilesize }}" />
+                                            <input type="number" name="max_filesize" value="{{ .Config.MaxFilesize }}" />
                                             <span class="label">MB</span>
                                         </div>
                                     </div>
-                                </div>
-                                <div class="ts-text is-description has-top-spaced">If a recording is smaller than this size limit, it will be deleted</div>
-                            </div>
-                        </div>
-                    </div>
-                    <!-- / Minimum Filesize Options --> 
-
-
-                    <div class="ts-divider has-top-spaced"></div>
-
-                    <div class="ts-content is-secondary is-horizontally-padded ">
-                        <div class="ts-grid is-middle-aligned">
-                            <div class="column is-fluid">
-                                <div class="ts-checkbox is-description">
-                                    <input type="checkbox" id="persist-changes" name="persist_settings" style="vertical-align:middle; margin-right:6px;" {{ if .Config.PersistSettings }}checked{{ end }}>
-                                    <label for="persist-changes" style="vertical-align:middle;">Make settings persistent</label>
-                                </div>
-                            </div>
-                            <div class="column">
-                                <button type="reset" class="ts-button is-outlined is-secondary" data-dialog="settings-dialog">Cancel</button>
-                            </div>
-                            <div class="column">
-                                <button type="submit" class="ts-button is-primary">Apply</button>
-                            </div>
-                        </div>
-                    </div>
-                    
-                </form>
-            </div>
-        </dialog>
-        <!-- / Settings Dialog -->
-
-        <!-- Create Dialog -->
-        <dialog id="create-dialog" class="ts-modal" style="--width: 680px">
-            <div class="content">
-                <form action="/create_channel" method="POST">
-                    
-                    <input type="hidden" id="edit-flag" name="edit" value="false" />
-
-                    <div class="ts-content is-horizontally-padded is-secondary">
-                        <div class="ts-grid">
-                            <div class="column is-fluid">
-                                <div class="ts-header">Add Channel</div>
-                            </div>
-                            <div class="column">
-                                <button type="reset" class="ts-close is-rounded is-large is-secondary" data-dialog="create-dialog"></button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="ts-divider"></div>
-
-                    <div class="ts-content is-vertically-padded">
-                        <!-- Channel Username -->
-                        <div class="ts-control is-wide">
-                            <div class="label">Channel Username</div>
-                            <div class="content">
-                                <div class="ts-input is-start-labeled">
-                                    <div class="label">{{ .Config.Domain }}</div>
-                                    <input type="text" id="username-input" name="username" autofocus required />
-                                </div>
-                                <div class="ts-text is-description has-top-spaced-small">Use commas to separate multiple channel names, e.g. "channel1, channel2, channel3".</div>
-                            </div>
-                        </div>
-                        <!-- / Channel Username -->
-
-                        <!-- Resolution -->
-                        <div class="ts-control is-wide has-top-spaced-large">
-                            <div class="label">Resolution</div>
-                            <div class="content">
-                                <div class="ts-select">
-                                    <select name="resolution">
-                                        <option value="2160" {{ if eq .Config.Resolution 2160 }}selected{{ end }}>4K</option>
-                                        <option value="1440" {{ if eq .Config.Resolution 1440 }}selected{{ end }}>2K</option>
-                                        <option value="1080" {{ if eq .Config.Resolution 1080 }}selected{{ end }}>1080p</option>
-                                        <option value="720" {{ if eq .Config.Resolution 720 }}selected{{ end }}>720p</option>
-                                        <option value="540" {{ if eq .Config.Resolution 540 }}selected{{ end }}>540p</option>
-                                        <option value="480" {{ if eq .Config.Resolution 480 }}selected{{ end }}>480p</option>
-                                        <option value="240" {{ if eq .Config.Resolution 240 }}selected{{ end }}>240p</option>
-                                    </select>
-                                </div>
-                                <div class="ts-text is-description has-top-spaced-small">The lower resolution will be used if the selected resolution is not available.</div>
-                            </div>
-                        </div>
-                        <!-- / Resolution -->
-
-                        <!-- Framerate -->
-                        <div class="ts-control is-wide has-top-spaced-large">
-                            <div class="label">Framerate</div>
-                            <div class="content is-padded">
-                                <div class="ts-wrap is-compact is-vertical">
-                                    <label class="ts-radio">
-                                        <input type="radio" name="framerate" value="60" {{ if eq .Config.Framerate 60 }}checked{{ end }} />
-                                        60 FPS (or lower)
-                                    </label>
-                                    <label class="ts-radio">
-                                        <input type="radio" name="framerate" value="30" {{ if eq .Config.Framerate 30 }}checked{{ end }} />
-                                        30 FPS
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- / Framerate -->
-
-                        <!-- Filename Pattern -->
-                        <div class="ts-control is-wide has-top-spaced-large">
-                            <div class="label">Filename Pattern</div>
-                            <div class="content">
-                                <div class="ts-input">
-                                    <input type="text" name="pattern" value="{{ .Config.Pattern }}" />
-                                </div>
-                                <div class="ts-text is-description has-top-spaced-small">
-                                    See the <a class="ts-text is-external-link is-link" href="https://github.com/teacat/chaturbate-dvr" target="_blank">README</a> for details.
-                                </div>
-                            </div>
-                        </div>
-                        <!-- / Filename Pattern -->
-
-                        <div class="ts-divider has-vertically-spaced-large"></div>
-
-                        <!-- Splitting Options -->
-                        <div class="ts-control is-wide has-top-spaced">
-                            <div class="label">Splitting Options</div>
-                            <div class="content">
-                                <div class="ts-content is-padded is-secondary">
-                                    <div class="ts-grid is-relaxed is-2-columns">
-                                        <div class="column">
-                                            <div class="ts-text is-bold">Max Filesize</div>
-                                            <div class="ts-input is-end-labeled has-top-spaced-small">
-                                                <input type="number" name="max_filesize" value="{{ .Config.MaxFilesize }}" />
-                                                <span class="label">MB</span>
-                                            </div>
-                                        </div>
-                                        <div class="column">
-                                            <div class="ts-text is-bold">Max Duration</div>
-                                            <div class="ts-input is-end-labeled has-top-spaced-small">
-                                                <input type="number" name="max_duration" value="{{ .Config.MaxDuration }}" />
-                                                <span class="label">Min(s)</span>
-                                            </div>
+                                    <div class="column">
+                                        <div class="ts-text is-bold">Max Duration</div>
+                                        <div class="ts-input is-end-labeled has-top-spaced-small">
+                                            <input type="number" name="max_duration" value="{{ .Config.MaxDuration }}" />
+                                            <span class="label">Min(s)</span>
                                         </div>
                                     </div>
-                                    <div class="ts-text is-description has-top-spaced">Splitting will be disabled if both options are 0.</div>
                                 </div>
+                                <div class="ts-text is-description has-top-spaced">Splitting will be disabled if both options are 0.</div>
                             </div>
                         </div>
-                        <!-- / Splitting Options -->
-
-
-                        <!-- Priority Options -->
+                    </div>
+                    <!-- Priority Options -->
                         <div class="ts-control is-wide has-top-spaced">
                             <div class="label">Set priority</div>
                             <div class="content">
@@ -773,7 +729,6 @@
                     </div>
 
                     <div class="ts-divider"></div>
-
                     <div class="ts-content is-secondary is-horizontally-padded">
                         <div class="ts-wrap is-end-aligned">
                             <button type="reset" class="ts-button is-outlined is-secondary" data-dialog="create-dialog">Cancel</button>
@@ -784,16 +739,12 @@
             </div>
         </dialog>
         <!-- / Create Dialog -->
-
-
         <dialog id="delete-confirm" class="ts-modal" style="--width: 480px">
             <div class="content">
                 <div style="margin:.7em" class="ts-wrap is-end-aligned">
                     <button type="reset" class="ts-close is-rounded is-large is-secondary" data-dialog="delete-confirm"></button>
                 </div>                
-                <div class="ts-content is-center-aligned is-padded">
-                     
-
+                <div class="ts-content is-center-aligned is-padded">                    
                     <div class="ts-header is-icon">
                         <div class="ts-badge ts-image is-circular channel-thumbnail" ></div>
                         <span style="font-size: 1.8em;" class="has-top-spaced-small channel-name">Undefined</span>
@@ -809,10 +760,6 @@
                 </div>
             </div>
         </dialog>
-
-
-
-
         <div id="log-window" class="ts-modal" style="--width: 480px position: absolute;">
             <div class="ts-app-topbar">
                 <div class="start">
@@ -833,7 +780,6 @@
             <div id="js-debug">
                 <div>DOM Updates Allowed:</div> <div id="sse-passed" style="color:rgb(67, 127, 67)"></div><div>DOM Updates Blocked:</div><div id="sse-skipped" style="color:rgb(168, 88, 88)"></div> 
             </div> 
-
                 </div>
                 <div class="ts-divider"></div>
                 <div class="ts-content is-tertiary">
@@ -843,12 +789,10 @@
                     </div>
                 </div>
             </div>
+            
         </div>
-
-        <script>
- 
-
-
-        </script>
+        
+        </div>
+        <span id="app-data-json" style="display:none;">{"AppInitTs":{{.Config.AppInitTs}},"WebInitTs":{{.Config.WebInitTs}}}</span>
     </body>
 </html>

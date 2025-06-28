@@ -51,7 +51,7 @@ func Index(c *gin.Context) {
 	channels := server.Manager.ChannelInfo()
 
 	sortChannels(channels)
-
+	server.Config.WebInitTs = time.Now().UnixMilli()
 	c.HTML(200, "index.html", &IndexData{
 		Config:   server.Config,
 		Channels: channels,

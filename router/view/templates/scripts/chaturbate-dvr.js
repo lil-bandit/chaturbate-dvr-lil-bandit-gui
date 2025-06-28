@@ -1,967 +1,782 @@
-(function(){
+(function() {
+    'use strict';
 
-    const params = new URLSearchParams(window.location.search);
-    if (params.has("debug")) {
-        var cbdvr_debug = true;
-        console.log("Debug mode active!");
-    }
+    // Configuration and state
+    const config = {
+        debug: new URLSearchParams(window.location.search).has("debug"),
+        animationTime: 2000,
+        statusOrder: ['RECORDING', 'QUEUED', 'BLOCKED', 'OFFLINE', 'PAUSED']
+    };
 
-    document.addEventListener("DOMContentLoaded", Main, false);
+    const state = {
+        channels: {},
+        sessionChannels: JSON.parse(sessionStorage.getItem("channels") || "{}"),
+        lastOrder: [],
+        lastUserMoved: 0,
+        lastSSEEvent:0,
+        isAnimating: false,
+        appInitDate: null,
+        webInitDate: null,
+        appInitTs: 0,
+        webInitTs: 0,        
+        debugCounters: { skipped: 0, passed: 0 }
+    };
 
-    
-    function Main(){
-        //console.log("Chaturbate DVR Script Loaded")
+    // Utility functions
+    const utils = {
+        log: (...args) => config.debug && console.log(...args),
         
-        // Handle user disabled scrolling
-        document.body.addEventListener("htmx:sseBeforeMessage", function (e) {
-            var sseInfo = sseParseEvent(e);
-            if ( sseInfo.log_type === "log" ) {
-                if ( !e.detail.elt.closest(".ts-box").querySelector("[type=checkbox]").checked ) {
-                    e.preventDefault();
-                } 
-            }
-        })
-          
-        
+        cancelEvent(e) {
+            e.stopPropagation();
+            e.preventDefault();
+        },
 
-        // ▀█▀ ░█▄─░█ ░█▀▀█ ░█─░█ ▀▀█▀▀ 　 ░█▀▀▀ ▀█▀ ░█─── ▀▀█▀▀ ░█▀▀▀ ░█▀▀█ 
-        // ░█─ ░█░█░█ ░█▄▄█ ░█─░█ ─░█── 　 ░█▀▀▀ ░█─ ░█─── ─░█── ░█▀▀▀ ░█▄▄▀ 
-        // ▄█▄ ░█──▀█ ░█─── ─▀▄▄▀ ─░█── 　 ░█─── ▄█▄ ░█▄▄█ ─░█── ░█▄▄▄ ░█─░█
+        getChannelId(element) {
+            const channelEl = element.closest('[channel-id]');
+            return channelEl?.getAttribute("channel-id") || "";
+        },
 
-    
-        
-        // This just enables the ability to paste a chaturbate URL into the username input field
-        // and it will automatically extract the username from it.
+        getChannelBox(channelId) {
+            return document.querySelector(`[channel-id="${channelId}"]`);
+        },
 
-        document.getElementById('username-input').addEventListener('input', function (e) {
-            let value = e.target.value.trim();
-
-            // If it's a chaturbate URL, extract the username
-            if (value.includes('chaturbate.')) {
-                let match = value.match(/^(?:https?:\/\/)?(?:[a-zA-Z0-9-]+\.)?chaturbate\.[a-z.]+\/([^\/\s?#]+)/i);
-                if (match) {
-                    value = match[1];
-                }
-            }
-
-            // Sanitize for CSV-style input by removing empty values
-            const cleaned = value
-                .split(',')
-                .map(v => v.trim())
-                .filter(v => v.length > 0)
-                .join(',');
-
-            e.target.value = cleaned;
-        });
-        // ================================================================================================
-
-
-
-
-
-        // ░█▀▀▀█ ░█▀▀▀█ ░█▀▀█ ▀▀█▀▀ 
-        // ─▀▀▀▄▄ ░█──░█ ░█▄▄▀ ─░█── 
-        // ░█▄▄▄█ ░█▄▄▄█ ░█─░█ ─░█──
-
-
-
-        //-----
-        var ListSorter = (function() {
-            var lastOrder = [];
-            var lastUserMoved = 0;
-            var lastAnimationTs = new Date().getTime();
-            var timeout_reference;
-            var isAnimating = false;
-
-            const ANIMATION_TIME_MS = 2000;
-
-            // Helper to compare two arrays element by element
-            function arraysAreEqual(arr1, arr2) {
-                return arr1.length === arr2.length && arr1.every((val, i) => val === arr2[i]); 
-            }
-
-            function getSortPriority(el) {
-                // Using a simple text content check for the '.ts-badge'
-                var badgeEl = el.querySelector('.ts-badge');
-                var badgeText = badgeEl ? badgeEl.textContent.trim() : '';
-                switch (badgeText) {
-                    case 'RECORDING': return 0;
-                    case 'QUEUED':    return 1;
-                    case 'BLOCKED':   return 2;
-                    case 'OFFLINE':   return 3;
-                    case 'PAUSED':    return 4;
-                }
-                return 5;
-            }
-        
-            function sortRows() {
-                
-                var now = new Date().getTime();
-                
-                if( isAnimating ) return; // If we're already animating then we return ( a new check will be called when the animation completes )
-                if ( ( now - lastUserMoved ) < 1000 ) return setTimeout(function(){ sortRows()},500); // delay the animation due to userinteaction ( mouse move )
-
-                let container = document.querySelector('.ts-wrap');
-                let boxes = Array.prototype.slice.call( container.querySelectorAll('.channel-box') );
-                
-                // Sort the boxes based on status priority and channel name
-                boxes.sort(function(a, b) {
-                    let pa = getSortPriority(a);
-                    let pb = getSortPriority(b);
-                    if (pa !== pb) return pa - pb;
-                    return getChannelNameFromElement(a).localeCompare( getChannelNameFromElement(b) );
-                });
-
-                // Build the new order array of header texts
-                let newOrder = boxes.map(function(box) { return getChannelNameFromElement(box)});
-                
-                // If the order hasn't changed, skip reordering and animation
-                if (arraysAreEqual(newOrder, lastOrder)) { 
-                    return;
-                }
-
-                
-                let positions = new Map();
-                boxes.forEach(function(box) { positions.set(box, box.getBoundingClientRect());}); // Store initial positions
-                boxes.forEach(function(box) { container.appendChild(box); }); // Append in new order to the container
-
-                // Animate movement using gsap
-                isAnimating = true;
-                boxes.forEach(function(box) {
-                    let oldPos = positions.get(box);
-                    let newPos = box.getBoundingClientRect();
-                    let from = { x: oldPos.left - newPos.left, y: oldPos.top  - newPos.top }
-                    let to = { x: 0, y: 0, duration: ANIMATION_TIME_MS/1000, ease: "back.inOut(1.1)" } /*"power2.inOut" */ 
-                    
-                    // Scroll non collapsed texareas
-                    var textarea = box.closest(".js-is-collapsed") ? null : box.querySelector("textarea");
-                    if( textarea ) { 
-                        to.onUpdate = function() { 
-                            scrollLogTextarea( textarea );
-                        };    
-                    }
-                    to.onComplete = function(){
-                        isAnimating = false; // Allow new animation
-                        setTimeout(function(){sortRows();},500)
-                    }                       
-                    gsap.fromTo( box, from, to );
-                });
-
-                lastOrder = newOrder; // Update lastOrder to the new order for next time
-            }
-
-            // Listen to mouse movements (this was used before for potential delays)
-            document.body.addEventListener('mousemove', function(e) {
-                lastUserMoved = new Date().getTime();
-            });
-
+        parseSSEEvent(evt) {
+            const sseId = evt.detail.elt.getAttribute('sse-swap');
+            if (!sseId) return {};
+            
+            const divider = sseId.lastIndexOf("-");
             return {
-                updateSort: function() {
-                    setTimeout( sortRows , 1000 );
-                }
+                channelId: sseId.substring(0, divider),
+                logType: sseId.substring(divider + 1)
             };
-        })();
-        // ================================================================================================
+        },
 
-
-       
-
+        arraysEqual(arr1, arr2) {
+            return arr1.length === arr2.length && arr1.every((val, i) => val === arr2[i]);
+        },
         
+        formatTime (dateArg){
+            const date = dateArg || new Date(); // or your Date object
 
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            const seconds = String(date.getSeconds()).padStart(2, '0');
+            const timeString = `${hours}:${minutes}:${seconds}`;
+            return timeString;
+        },
 
-        // ░█▀▀▀ ░█▀▀▄ ▀█▀ ▀▀█▀▀ 　 ░█▀▀▄ ▀█▀ ─█▀▀█ ░█─── ░█▀▀▀█ ░█▀▀█ 
-        // ░█▀▀▀ ░█─░█ ░█─ ─░█── 　 ░█─░█ ░█─ ░█▄▄█ ░█─── ░█──░█ ░█─▄▄ 
-        // ░█▄▄▄ ░█▄▄▀ ▄█▄ ─░█── 　 ░█▄▄▀ ▄█▄ ░█─░█ ░█▄▄█ ░█▄▄▄█ ░█▄▄█
-                
+        formatDuration(ms) {
+            const sec = Math.floor(ms / 1000);
+            const units = [
+                { label: "day", value: 86400 },
+                { label: "hour", value: 3600 },
+                { label: "min", value: 60 },
+                { label: "second", value: 1 },
+            ];
 
-        // Edit Channel Dialog          
-        var EditChannelDialog = (function() {
-            
-            var title_text
-            var submit_text
+            let remaining = sec;
+            const amounts = [];
 
-            function onDialogClose() {
-                // Reset the dialog state when closed
-                document.getElementById('edit-flag').value = "false";
-                document.querySelector('#create-dialog .ts-header').textContent = title_text;
-                document.querySelector('#create-dialog button[type="submit"]').textContent = submit_text;
-                
-                // Remove the close handler
-                document.getElementById('create-dialog').removeEventListener('close', onDialogClose);
-                
-                // reset
-                const input = document.getElementById('username-input');
-                input.readOnly = false;
-                input.style.opacity = "1";
-            }  
-            
-
-            function onSubmit(e) {
-                /* */ 
-            }
-
-            function timeStringToMinutes(timeStr) {
-                if(!timeStr) return 0
-                const [hours, minutes, seconds] = timeStr.split(':').map(Number);
-                return hours * 60 + minutes + Math.floor(seconds / 60);
-            }
-
-            function open( username ) {
-                fetch('/api/channel/' + encodeURIComponent( username ))
-                    .then(res => res.json())
-                    .then(data => {
-                        // Set edit flag
-                        document.getElementById('edit-flag').value = "true";
-
-                        const input = document.getElementById('username-input');
-                        input.value = data.Username || "";
-                        input.readOnly = true;
-                        input.style.opacity = "0.5";
-                        
-                        // Fill fields
-                        document.querySelector('select[name="resolution"]').value   = data.Resolution   || 1080
-                        document.querySelector('input[name="priority"]').value      = data.Priority     || 0
-                        document.querySelector('input[name="max_filesize"]').value  = data.MaxFilesizeInt  || 0;
-                        document.querySelector('input[name="max_duration"]').value  = data.MaxDurationInt || 0; 
-                        document.querySelector('input[name="pattern"]').value       = data.Pattern      || "";
-
-                        title_text = document.querySelector('#create-dialog .ts-header').textContent
-                        submit_text = document.querySelector('#create-dialog button[type="submit"]').textContent
-
-                        // Change dialog title/button if editmode
-                        document.querySelector('#create-dialog .ts-header').textContent = "Edit Channel";
-                        document.querySelector('#create-dialog button[type="submit"]').textContent = "Save Changes";
-                        document.querySelector('#create-dialog form').addEventListener("submit", onSubmit);
-
-                        // Set close handler
-                        document.getElementById('create-dialog').addEventListener('close', onDialogClose);
-
-                        // Open the dialog
-                        document.getElementById('create-dialog').showModal();
-                        //console.log("Editing channel: ", data)
-                });
-            }
-            return {
-                open: open
-            }
-        })()
-        // ================================================================================================
-
-
-
-
-
-        // ░█▀▀▄ ░█▀▀▀ ░█─── ░█▀▀▀ ▀▀█▀▀ ░█▀▀▀ 　 ░█▀▀█ ░█▀▀█ ░█▀▀▀█ ░█▀▄▀█ ░█▀▀█ ▀▀█▀▀ 
-        // ░█─░█ ░█▀▀▀ ░█─── ░█▀▀▀ ─░█── ░█▀▀▀ 　 ░█▄▄█ ░█▄▄▀ ░█──░█ ░█░█░█ ░█▄▄█ ─░█── 
-        // ░█▄▄▀ ░█▄▄▄ ░█▄▄█ ░█▄▄▄ ─░█── ░█▄▄▄ 　 ░█─── ░█─░█ ░█▄▄▄█ ░█──░█ ░█─── ─░█──
-
-        
-
-        function confirmChannelDeletion (channel_id, event ) {
-            //console.log(channel_id)
-            var modal = document.getElementById('delete-confirm');
-            if(!modal) return console.error("No delete-confirm modal found in the document.");
-          
-            modal.querySelector('.channel-name').innerHTML = channel_id;
-            modal.querySelector('.channel-thumbnail').style.backgroundImage = "url('./channel-images/" + channel_id + ".jpg'), url('static/default_user.png')";;
-            modal.querySelector('.btn-ok').onclick = function() {
-                fetch('/stop_channel/' + channel_id, { method: 'POST' }).then(function(response) {
-                    if (response.ok) {
-                        // Optionally, you can refresh the page or update the UI after deletion
-                        location.reload();
-                    } else {
-                        console.error("Failed to delete channel:", channel_id);
-                    }
-                }); 
-            };
-     
-            modal.showModal();
-        }
-        // ================================================================================================
-
-
-
-
-
-
-
-                
-        // ░█▀▀█ ░█▀▀▀█ ░█─── ░█─── ─█▀▀█ ░█▀▀█ ░█▀▀▀█ ▀█▀ ░█▀▀█ ░█─── ░█▀▀▀ 
-        // ░█─── ░█──░█ ░█─── ░█─── ░█▄▄█ ░█▄▄█ ─▀▀▀▄▄ ░█─ ░█▀▀▄ ░█─── ░█▀▀▀ 
-        // ░█▄▄█ ░█▄▄▄█ ░█▄▄█ ░█▄▄█ ░█─░█ ░█─── ░█▄▄▄█ ▄█▄ ░█▄▄█ ░█▄▄█ ░█▄▄▄
-
-
-
-
-        function onCollapsibleClick( event ) {
-            const collapseClass = "js-is-collapsed"
-            const channel_box = event.target.closest('[channel-id]')
-            let channel_id = channel_box.getAttribute("channel-id");
-            var textarea = channel_box.querySelector("textarea");
-            
-            if ( channel_box ) {
-                if (channel_box.classList.contains(collapseClass)) {
-                    channel_box.classList.remove(collapseClass);
-                    document.activeElement.blur();
-                } else {
-                    channel_box.classList.add(collapseClass);
+            for (const unit of units) {
+                const amount = Math.floor(remaining / unit.value);
+                remaining %= unit.value;
+                if (amount > 0 || (unit.label === "second" && amounts.length === 0)) {
+                    amounts.push({ label: unit.label, amount,});
                 }
-                
-                // Temporarily disable scrollbar while animating ( looks better )
-                textarea.style.overflowY = "hidden";
-                setTimeout(function(){ textarea.style.overflowY = "auto";}, 600);
-
-                // Make sure the logarea has text ( DOM updates are cancelled while collapsed )
-                requestChannelUpdate(channel_id);
-                //setTimeout( function () { requestChannelUpdate(channel_id) },1000); 
-            } else {
-                console.error('No parent .channel-box found for the clicked element.')
             }
-            
+
+            const parts = [];
+            for (const item of amounts) {
+                if (item.label !== "min") {
+                    parts.push(`${item.amount} ${item.label}${item.amount !== 1 ? "s" : ""}`);
+                }
+                if (parts.length >= 2) {
+                break;
+                }
+            }
+
+            const minutes = amounts.find(u => u.label === "min");
+            if (minutes) {
+                parts.push(`${minutes.amount} ${minutes.label}${minutes.amount !== 1 ? "s" : ""}`);
+            }
+            return parts.join(" ");
         }
-        // ================================================================================================
 
 
+    };
 
-
-
-        // ░█▀▀█ ░█─── ▀█▀ ░█▀▀█ ░█─▄▀ ░█▀▀▀█ 
-        // ░█─── ░█─── ░█─ ░█─── ░█▀▄─ ─▀▀▀▄▄ 
-        // ░█▄▄█ ░█▄▄█ ▄█▄ ░█▄▄█ ░█─░█ ░█▄▄▄█
-
-
- 
-        var ClickHandler = (function(){
-            
-            // Gotta Catch 'Em All! 🦖🎵🎶
-
-            function clickHandler(event) {
-                //console.log( "channel_id " + channel_id )
-                var channel_id = getChannelNameFromElement(event.target);
-                
-                if( event.target.closest('.btn-openweb') ) {
-                    // OPEN ON WEBSITE
-                    var site_url = document.querySelector(".content > .is-start-labeled > .label")?.textContent;
-                    window.open(site_url +""+ channel_id+"/",'_blank');
-                    return cancelEvent(event);
-
-                }else if( event.target.closest('.btn-edit') ) {
-                    // EDIT CHANNEL DIALOG
-                    cbdvr.editChannel( channel_id )
-                    return cancelEvent(event);
-
-                }else if( event.target.closest('.btn-delete') ) {
-                    // DELETE CHANNEL PROMPT
-                    confirmChannelDeletion(channel_id);
-                    return cancelEvent(event);    
-
-                }else if( event.target.closest('.ch-status') ) {
-                    // PAUSE/RESUME CHANNEL
-                    event.target.closest('.ch-status-paused') ? resumeChannel( channel_id ) : pauseChannel( channel_id );
-                    return cancelEvent(event);    
-                
-                }else if( event.target.closest('.channel-thumbnail') ) {
-                    // THUMBNAIL REFRESH
-                    let channel_info = ChannelTracker.getChannel(channel_id);
-                    if( channel_info.status === "RECORDING" || channel_info.status === "QUEUED" ) {
-                        // Channel is online
-                        updateChannelThumbnail(channel_id)
-                    }else {
-                        // Channel is offline or paused, we just expand instead
-                        onCollapsibleClick(event);
-                    }
-                    return cancelEvent(event);
-
-                }else if ( event.target.closest(".menu-export-as-csv") ) {
-                    // EXPORT CHANNELS LIST AS CSV
-                    return cancelEvent(event);
-
-                }else if ( event.target.closest(".menu-enable-debug") ) {
-                    // ENABLE DEBUG
-                    cbdvr.enableDebug(event);
-                    return cancelEvent(event);
-
-                }else  if( event.target.closest('.channel-header') ) {
-                    // EXPAND/COLLAPSE LIST ITEM
-                    onCollapsibleClick(event);
-                    return cancelEvent(event);
-
-                }                    
-            };
-
-            document.body.addEventListener('click', clickHandler); 
-        })()
-
-        // ================================================================================================
-
-
-
-
-
-
-        // ▀▀█▀▀ ░█▀▀█ ─█▀▀█ ░█▀▀█ ░█─▄▀ 
-        // ─░█── ░█▄▄▀ ░█▄▄█ ░█─── ░█▀▄─ 
-        // ─░█── ░█─░█ ░█─░█ ░█▄▄█ ░█─░█
-
-
-        //-----
-
-        var ChannelTracker = (function (){
-            
-            var channels = {};
-
-            const status_strings = ["OFFLINE","QUEUED","BLOCKED","PAUSED","RECORDING"];
-           
-            function prefetchChannelData( onComepleteHandler ){
-                // Fetch channels from session storage , if it exist. Mainly to store image anticache value
-                session_channels = JSON.parse( sessionStorage.getItem("channels") ) || {};
-  
-                getChannels(function(data){
-                    for(var i = 0; i < data.length ; i++){
-                        var chInfo = data[i]; // json object sent from go
-                        var ch = getChannelObj( chInfo.Username ); // create our js tracking object                        
-                        ch.status = chInfo.IsPaused ? "PAUSED" : chInfo.IsBlocked ? "BLOCKED" : chInfo.IsDownPrioritized ? "QUEUED" : chInfo.IsOnline ? "RECORDING" : "OFFLINE";
-                        ch.thumbAnticache = session_channels[chInfo.Username] ? session_channels[chInfo.Username].thumbAnticache || 0 : 0;
-                    }
-                    onComepleteHandler() 
-                })
+    // API functions
+    const api = {
+        async request(url, options = {}) {
+            try {
+                const response = await fetch(url, options);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                return response.json();
+            } catch (error) {
+                console.error(`API request failed: ${url}`, error);
+                throw error;
             }
+        },
 
-            function getStatusFromEventData(str) {
-                str = str.toUpperCase();
-                return status_strings.find(status => str.includes(status)) || null;
-            }        
-             
-            function getChannelObj( channel_id  ){
-                channels[channel_id] = channels[channel_id] || {
-                    id: channel_id,
+        getChannels() {
+            return this.request('/api/channels/');
+        },
+
+        getChannel(username) {
+            return this.request(`/api/channel/${encodeURIComponent(username)}`);
+        },
+
+        pauseChannel(channelId) {
+            return this.request(`/pause_channel/${channelId}`, { method: 'POST' });
+        },
+
+        resumeChannel(channelId) {
+            return this.request(`/resume_channel/${channelId}`, { method: 'POST' });
+        },
+
+        stopChannel(channelId) {
+            return this.request(`/stop_channel/${channelId}`, { method: 'POST' });
+        },
+
+        updateThumbnail(channelId) {
+            return this.request(`/update_thumbnail/${channelId}`, { method: 'POST' });
+        },
+
+        updateChannel(channelId) {
+            return this.request(`/update_channel/${channelId}`, { method: 'POST' });
+        }
+    };
+
+    // Channel management
+    const channelManager = {
+        getChannel(channelId) {
+            if (!state.channels[channelId]) {
+                state.channels[channelId] = {
+                    id: channelId,
                     lastUpdateTs: Date.now(),
-                    thumbAnticache: 0,
+                    thumbAnticache: state.sessionChannels[channelId]?.thumbAnticache || 0,
                     status: null,
-                    dataTransferTracking : []
-                }; // Create if not exist
-                return channels[channel_id];
+                    dataTransferTracking: [],
+                    avgThroughputBps: 0
+                };
             }
+            return state.channels[channelId];
+        },
 
-
-
-
-            function inspectEvent(e) {
-                const now = Date.now();
-                const sseInfo = sseParseEvent(e);
-                //console.log("sseInfo.log_type: "+sseInfo.log_type, e)
-                if ( !sseInfo.channel_id ) return console.log("channel_id was nothing");
-
-                const ch = getChannelObj( sseInfo.channel_id );
-                ch.lastUpdateTs = now;
-                if (sseInfo.log_type === "info") {
-
-                    const status = getStatusFromEventData( e.detail.data );
-                    if ( status && ch.status !== status ) {
-                        // it changed, setting new reference and notifying;
-                        ch.status = status;
-                        ChannelTracker.onStatusUpdate( ch, e );
-                    }
-                } else if (sseInfo.log_type === "log") {
-                    if( ch.status == "RECORDING" ) {
-                        ChannelTracker.onRecordingUpdate( ch, e );
-                    }
-                        
-                        
-                }
-            }
-
-            function beforeSwapHandler(e){
-                inspectEvent(e); 
-                if ( e.detail.elt.closest(".js-is-collapsed") ) {
-                    elm_debug_out_sse_skipped.innerHTML = ++debug_out_sse_skipped;
-                    return e.preventDefault();
-                }
-                elm_debug_out_sse_passed.innerHTML = ++debug_out_sse_passed; 
-            }
-
-            function afterSwapHandler(e){
-                scrollLogTextarea(e.detail.elt);
-            }
-
-
-            function initTracker(){
-                if( cbdvr.debug ) console.log("Begin tracking");
-                document.body.addEventListener('htmx:sseBeforeMessage', beforeSwapHandler);
-                document.body.addEventListener('htmx:afterSwap', afterSwapHandler);
-                // Save the channel data onunload
-                window.addEventListener("beforeunload", function(){
-                    sessionStorage.setItem("channels", JSON.stringify(channels));
-                }, false);
-                ChannelTracker.onReady(channels);
-            }
+        updateStatus(channel) {
+            this.updateVisuals(channel);
+            utils.log(`Channel status updated: ${channel.id} [${channel.status}]`);
             
-            // Get JSON chInfo from go, before we start
-            // This way we have info about all channels, and do not need to wait for "updates" to register channels.
-            prefetchChannelData( initTracker ); 
+        },
 
-            return {
-                getChannel : function( channel_id ){
-                    return getChannelObj( channel_id )
-                },
-                getChannelsData : function(){
-                    return channels;
-                }                
-            }
-        })();
+        updateVisuals(channel) {
+            const channelBox = utils.getChannelBox(channel.id);
+            if (!channelBox) return;
 
+            // Update status display
+            const statusEl = channelBox.querySelector(".ch-status");
+            if (statusEl) statusEl.textContent = channel.status;
 
-         // ================================================================================================
-
-
-        function trackFilesize(log_txt, ch) {
-            // Get the last line and attempt to extract filesize value
-            // This is a bit oldschool, but safe.
-            let last_line = log_txt.trim().split("\n").pop();
-            const s1 = last_line.split("filesize: ");
-            if (s1.length < 2) return null;
-
-            const firstValue = s1[1].split(" ")[0];
-            const number = !isNaN( firstValue ) ? parseFloat( firstValue ) : 0;
-            const kilobytes = Math.round(number * 1024); // Convert to KB
-            if(!kilobytes) return
-            
-            const lastEntry = ch.dataTransferTracking[ch.dataTransferTracking.length - 1];
-            
-            // Detect filesize reset ( Is file suddently lower? )
-            if (lastEntry && kilobytes < lastEntry[0] ) {
-                //console.warn("Detected filesize reset. Resetting tracking history.");
-                ch.dataTransferTracking = [];
-            }
-
-            // Trim to max length
-            if (ch.dataTransferTracking.length >= 10) ch.dataTransferTracking.shift();
-
-            // Add new entry
-            ch.dataTransferTracking.push([kilobytes, Date.now() ]);
-
-            // Calculate average throughput
-            if ( kilobytes && ch.dataTransferTracking.length > 2) {
-                const first = ch.dataTransferTracking[0];
-                const last = ch.dataTransferTracking[ch.dataTransferTracking.length - 1];
-                const deltaKB = last[0] - first[0];
-                const deltaSec = (last[1] - first[1]) / 1000;
-
-                if (deltaSec > 0) {
-                    const avgThroughputKBps = deltaKB / deltaSec;
-                    ch.avgThroughputKBps = avgThroughputKBps;
-                }
-            }
-        }
-
-        function totalThroughput() {
-            var channels = ChannelTracker.getChannelsData();
-            var total = 0;
-            Object.values(channels).forEach(function(ch) {
-                if ( ch.status === "RECORDING" && ch.avgThroughputKBps > 0 ) {
-                    total += ch.avgThroughputKBps;
-                }
+            // Update CSS classes
+            config.statusOrder.forEach(status => {
+                channelBox.classList.remove(`ch-status-${status.toLowerCase()}`);
             });
-            let el = document.querySelector(".mini-badges .throughput");
-            el.innerHTML = ( total / 1024 ).toFixed( 2 ) + " MB/s";
-        }
+            channelBox.classList.add(`ch-status-${channel.status.toLowerCase()}`);
 
-        setInterval(totalThroughput,500);
+            // Trigger updates
+            listSorter.scheduleSort();
+            this.updateCounters();
+        },
 
-
-        function updateCounters() {
-            const data = ChannelTracker.getChannelsData();
-            
-            // How many of each?
-            const statusCounts = Object.values(data).reduce((acc, entry) => {
-                acc[entry.status] = (acc[entry.status] || 0) + 1;
+        updateCounters() {
+            const statusCounts = Object.values(state.channels).reduce((acc, ch) => {
+                acc[ch.status] = (acc[ch.status] || 0) + 1;
                 return acc;
             }, {});
-
-            // Select all badge elements with class starting with 'mini-badge-'
-            const badgesElm = document.querySelector(".mini-badges");
-            const allBadgeEls = document.querySelectorAll(".mini-badges > div");
-            badgesElm.style.opacity = 1;
-
-            allBadgeEls.forEach(el => {
+            console.log( statusCounts )
+            document.querySelectorAll(".mini-badges > div").forEach(el => {
                 const match = el.className.match(/mini-badge-(\w+)/i);
                 if (!match) return;
 
                 const status = match[1].toUpperCase();
-                const count = statusCounts[status];
+                const count = statusCounts[status] || 0;
 
-                if ( count ) {
-                    var old = parseInt( el.textContent )
-                    var idle_opacity = .7
-                    if( count > old) {
-                        gsap.fromTo(el,{ opacity: 1, },{ delay:.2, opacity:idle_opacity, duration: 1, ease: "linear" });
-                    }else {
-                        gsap.fromTo(el,{ opacity: .4, },{ opacity:idle_opacity, duration: 1, ease: "linear" }); 
-                    }
+                if (count > 0) {
                     el.textContent = count;
-                    el.style.display = "";                                                              
+                    el.style.display = "";
+                    gsap?.fromTo(el, { opacity: 0.4 }, { opacity: 0.7, duration: 1 });
                 } else {
-                    el.style.display = "none"; 
+                    el.style.display = "none";
                 }
-                
             });
-        }
 
-       
+            // this.updateThroughput();  // <---------------------------------------------------------
+        },
 
-        var UpdateChannelVisuals = (function(){
-            // This function updates everything that needs to be updated after a channel changes its status.
-            
-            // Set status like "ch-status-offline" to channel-box, we let parent CSS rule over child elements; badge and thumbnail 
-            var a_status = ["blocked", "offline", "recording", "paused", "queued"];
-            function setChannelBoxStatus(channel_box, channel){
-                a_status.forEach(status => channel_box.classList.remove( "ch-status-"+status ));
-                channel_box.classList.add( "ch-status-"+channel.status.toLowerCase() );
-            }
-            
-            return function ( channel ){
-                console.log("channel_id", channel.id)
-                var channel_box = getBoxFromChannelName( channel.id );
-                channel_box.querySelector(".ch-status").innerHTML = channel.status;
-                
-                setChannelBoxStatus( channel_box, channel ); // set status class to channel_box
-                ListSorter.updateSort(); // Sort list items;
-                updateCounters(); // Update counters and throughput
-            }
-        })();
-
-
-      
-        // ================================================================================================
-        
-        // DO SOMETHING WHEN STATUS CHANGE TRACKED  
-
-        // This is called everytime a channel changes its status
-        ChannelTracker.onStatusUpdate = function( channel , evt ){
-            UpdateChannelVisuals( channel, evt );
-            if( cbdvr.debug ) console.log("Channel Status Updated: " + channel.id + " ["+channel.status+"]");
-        }
-
-        ChannelTracker.onReady = function( channels_data ){
-            if( cbdvr.debug ) console.log("Tracker ready", channels_data )
-            setTimeout( function() { updateCounters() }, 500);
-            // Make sure that updated background images ( in this session ) are not being cached    
-            Object.values(channels_data).forEach( function( ch ) {
-                if (ch.thumbAnticache) makeThumbnailUncached( ch.id, ch.thumbAnticache );
-            });
-        } 
-
-        ChannelTracker.onRecordingUpdate = function( channel, evt ){
-            trackFilesize ( evt.detail.data , channel )
-        }  
-
-       
-        // ================================================================================================
-        
-        
-
-
-
-
-
-
-        // ─█▀▀█ ░█▀▀█ ▀█▀ 
-        // ░█▄▄█ ░█▄▄█ ░█─ 
-        // ░█─░█ ░█─── ▄█▄
-
-
-
-
-        function getChannel(username, onData){
-            if(!username) return onData ? onData(null) : null;
-            fetch('/api/channel/' + encodeURIComponent(username))
-                .then(res => res.json())
-                .then(data => {
-                    if(onData) onData(data)
-                })
-        }
-
-        function getChannels(onData){
-            fetch('/api/channels/')
-                .then(res => res.json())
-                .then(data => {
-                    if(onData) onData(data)
-                })
-        }
-     
-        function updateChannelThumbnail(channel_id, onData){
-            var elm = getBoxFromChannelName( channel_id );
-            if(!elm) return;
-
-            elm.classList.add("loading-thumbnail");
-            var success = null;
-
-            fetch( '/update_thumbnail/' + channel_id, { method: 'POST' }).then(function(response) {
-                if (response.ok) {
-                    success = true;
-                } else {
-                    console.error("Failed to update thumbnail for:", channel_id);
-                }
-            }).finally(() => {
-                setTimeout( function(){ 
-                    if( success === true ) makeThumbnailUncached( channel_id );
-                    elm.classList.remove("loading-thumbnail"); 
-                }, 500 );
-            }); 
-        }
-
-        function requestChannelUpdate(channel_id, onData){
-            fetch( '/update_channel/' + channel_id, { method: 'POST' }).then(function(response) {
-                if (response.ok) {
-                    if( cbdvr.debug ) console.log("requestChannelUpdate( " + channel_id+ ")" + " success!")
-                } else {
-                    console.log("requestChannelUpdate( " + channel_id+ ")" + " error!")
-                }
-            }); 
-        }        
-
-        function pauseChannel(channel_id, onData){
-            fetch( '/pause_channel/' + channel_id, { method: 'POST' }).then(function(response) {
-                if (!response.ok) console.error("Failed to pause channel:", channel_id);
-            }); 
-        }
-
-        function resumeChannel(channel_id, onData){
-            fetch( '/resume_channel/' + channel_id, { method: 'POST' }).then(function(response) {
-                if (!response.ok) console.error("Failed to resume channel:", channel_id);        
-            });                
-        }    
-        // ================================================================================================
-
-
-
-
-
-
-        // ░█▀▄▀█ ▀█▀ ░█▀▀▀█ ░█▀▀█ 
-        // ░█░█░█ ░█─ ─▀▀▀▄▄ ░█─── 
-        // ░█──░█ ▄█▄ ░█▄▄▄█ ░█▄▄█
-
-
-
-
-        // --
-        function sseParseEvent(evt){
-            // Parse the id 
-            // Example: "channel123-info" or "channel123-log"    
-                
-            var sswe_id     = evt.detail.elt.getAttribute('sse-swap');
-            if( !sswe_id ) {
-                console.log( "no sse-swap attribute found", evt ) 
-                return {}
+        updateThroughput() {
+            const activeCount = Object.values(state.channels).filter(ch => ch.status === "RECORDING").length;    
+            const recInfoEl = document.querySelector(".recording-info");
+            if( !activeCount ) {
+                if(recInfoEl) recInfoEl.textContent = "Waiting for channels to go online"
+                return;
             } 
-            var divider     = sswe_id.lastIndexOf("-");
-            var channel_id  = sswe_id.substring(0, divider); // "channel123"
-            var log_type    = sswe_id.substring( divider + 1 , sswe_id.length ); // "info" or "log" 
-            return ( log_type && channel_id ) ? {channel_id: channel_id,log_type: log_type} : {};
-        }
-        // --
-        function cancelEvent(evt){
-            evt.stopPropagation();
-            evt.preventDefault();
-            return null
-        }
-        // --
-        function getChannelNameFromElement(el) {
-            let chEl = el.closest('[channel-id]');
-            return chEl ? chEl.getAttribute("channel-id") : "";
-        }
-        // --
-        function getElementFromChannelName( channel_id ){
-            return document.querySelector(`[sse-swap="${channel_id}-info"]`);
-        }
-        // --
-        function getBoxFromChannelName( channel_id ){
-            return document.querySelector(`[channel-id="${channel_id}"]`);
-        }
 
-        function scrollLogTextarea( el ){
-            if( el.closest(".js-is-collapsed") ) return null
-            var textarea = el.tagName === "TEXTAREA" ? el : el.querySelector("textarea");
+            const totalBytesPerSec = Object.values(state.channels)
+                .filter(ch => ch.status === "RECORDING" && ch.avgThroughputBps > 0)
+                .reduce((sum, ch) => sum + ch.avgThroughputBps, 0);
             
-            // Only scroll if textarea is non collapsed and "Auto Log Update" is enabled
-            if( textarea && el.closest(".channel-box").querySelector("[type=checkbox]").checked ) {
-                setTimeout( function(){ textarea.scrollTop = textarea.scrollHeight; }, 1 )
-            }
-        } 
-
-
-        // -- Get user-agent
-        function insertUserAgent(){
-            document.querySelector('#settings-dialog textarea[name="user_agent"]').value = navigator.userAgent;
-        }
-
-        // -- Manage anticache parameter to update thumbnail
-        function makeThumbnailUncached( channel_id , anticacheInt ){
-            var ch = ChannelTracker.getChannel( channel_id );
-            var elm = getBoxFromChannelName( channel_id );
-            try {
-                elm.querySelector(".channel-thumbnail").style.backgroundImage = ( "url(./channel-images/" + channel_id + ".jpg?"+ ( anticacheInt || ++ch.thumbAnticache ) +" ), url(static/default_user.png)" );
-            }catch(err){}
-        }
-    
-        function createMerged(a, b, allowExtraKeys = false) {
-            // Simply merge two objects
-            const result = Object.fromEntries( Object.keys(a).map(key => [key, Object.prototype.hasOwnProperty.call(b, key) ? b[key] : a[key]]));
+            const mbps = totalBytesPerSec / (1024 * 1024);
            
-            if (allowExtraKeys) {
-                // Allow objB to write properties that does not already exist in objA
-                for (const [key, value] of Object.entries(b)) { if (!result.hasOwnProperty(key)) { result[key] = value;}}
+            utils.log( state.channels, "mbps :" + mbps)
+ 
+            recInfoEl.textContent = `Recording ${activeCount}channel${activeCount > 1 ? "s" : ""} ${mbps.toFixed(2)} MB/s`;                       
+        },
+
+        updateTime() {
+            var el = document.querySelector("#time-information");
+            const activeCount = Object.values(state.channels).filter(ch => ch.status === "RECORDING").length;    
+            const recInfoEl = document.querySelector(".recording-info");
+            if( !activeCount ) {
+                if(recInfoEl) recInfoEl.textContent = "Waiting for channels to go online"
+                return;
+            } 
+
+            const totalBytesPerSec = Object.values(state.channels)
+                .filter(ch => ch.status === "RECORDING" && ch.avgThroughputBps > 0)
+                .reduce((sum, ch) => sum + ch.avgThroughputBps, 0);
+            
+            const mbps = totalBytesPerSec / (1024 * 1024);
+           
+            utils.log( state.channels, "mbps :" + mbps)
+ 
+            recInfoEl.textContent = `Recording ${activeCount}channel${activeCount > 1 ? "s" : ""} ${mbps.toFixed(2)} MB/s`;                       
+        },
+
+        updateActivityIndicator() {
+            var el = document.querySelector(".activity-indicator");
+            el.classList.add("blink")
+            setTimeout(function(){el.classList.remove("blink")},2000)
+        },        
+
+        trackFilesize ( bytes, channel) {
+            if ( !bytes ) return;
+            
+            const tracking = channel.dataTransferTracking || (channel.dataTransferTracking = []);
+            const lastEntry = tracking[tracking.length - 1];
+
+            // Detect reset
+            if ( channel.status !== "RECORDING" || ( lastEntry && bytes < lastEntry[0] ) ) {
+                // This might happen if the source resets or rolls over
+                tracking.length = 0;
             }
-            return result;
-        }
 
-        // ================================================================================================
+            // Maintain max 10 entries
+            if (tracking.length >= 10) tracking.shift();
+            tracking.push([bytes, Date.now()]);
 
+            // Calculate throughput
+            if (tracking.length > 2) {
+                const first = tracking[0];
+                const last = tracking[tracking.length - 1];
+                const deltaBytes = last[0] - first[0];
+                const deltaSec = (last[1] - first[1]) / 1000;
 
-
-
-
-
-        // ░█▀▀▄ ░█▀▀▀ ░█▀▀█ ░█─░█ ░█▀▀█ 
-        // ░█─░█ ░█▀▀▀ ░█▀▀▄ ░█─░█ ░█─▄▄ 
-        // ░█▄▄▀ ░█▄▄▄ ░█▄▄█ ─▀▄▄▀ ░█▄▄█
-
-
-
-        (function(){
-            const logWindow = document.querySelector("#log-window")
-            const topBar = document.querySelector("#log-window .ts-app-topbar")
-            let isDragging = false;
-            let offsetX, offsetY;
-
-            topBar.addEventListener("mousedown", (e) => {
-                isDragging = true;
-                offsetX = e.clientX - logWindow.offsetLeft;
-                offsetY = e.clientY - logWindow.offsetTop;
-            });
-
-            document.addEventListener("mousemove", (e) => {
-            if (isDragging) {
-                logWindow.style.left = `${e.clientX - offsetX}px`;
-                logWindow.style.top = `${e.clientY - offsetY}px`;
+                if (deltaSec > 0) {
+                    channel.avgThroughputBps = deltaBytes / deltaSec;
+                }
             }
-            });
-
-            document.addEventListener("mouseup", () => {
-            isDragging = false;
-            });
-        })()
-
-
-        function enableDebug(e){
-            cbdvr.debug = !!cbdvr.debug;
-            document.body.classList.toggle("debug");
-            //document.getElementById('log-window');
-            if(e) cancelEvent(e);
         }
+    };
 
-        var debug_out_sse_skipped = 0
-        var debug_out_sse_passed = 0
-        var elm_debug_out_sse_skipped = document.getElementById("sse-skipped");
-        var elm_debug_out_sse_passed = document.getElementById("sse-passed");
-        elm_debug_out_sse_skipped.innerHTML = 0
-        elm_debug_out_sse_passed.innerHTML = 0   
+    // List sorting functionality
+    const listSorter = {
+        timeout : null,
+        scheduleSort() {
+            var autoSortDisabledInUI = document.getElementById("auto-sort-toggle")?.checked === false;
+            if ( state.isAnimating || autoSortDisabledInUI ) return;
+            clearTimeout(this.timeout);
+            
+            const now = Date.now();
+            if (now - state.lastUserMoved < 1000) {
+                setTimeout(() => this.scheduleSort(), 500);
+                return;
+            }
 
+            // Create small delay regardless
+            this.timeout = setTimeout(function(){ listSorter.performSort();},500);
+        },
 
-        function enableSSEDebugging(channel_id){
-            cbdvr.debug = true;
+        performSort() {
+            const container = document.querySelector('.ts-wrap');
+            if (!container) return;
 
-            function doDebug(e,){
-                let sswe_id     = e.detail.elt.getAttribute('sse-swap')
-                if(sswe_id === null || sswe_id === undefined) {
-                    console.log("No sse-swap attribute found on element", e.detail.elt);
+            const boxes = Array.from(container.querySelectorAll('.channel-box'));
+            
+            boxes.sort((a, b) => {
+                const priorityA = this.getSortPriority(a);
+                const priorityB = this.getSortPriority(b);
+                if (priorityA !== priorityB) return priorityA - priorityB;
+                return utils.getChannelId(a).localeCompare(utils.getChannelId(b));
+            });
+
+            const newOrder = boxes.map(box => utils.getChannelId(box));
+            if (utils.arraysEqual(newOrder, state.lastOrder)) return;
+
+            this.animateSort(boxes, container);
+            state.lastOrder = newOrder;
+        },
+
+        getSortPriority(element) {
+            const badgeEl = element.querySelector('.ts-badge');
+            const badgeText = badgeEl?.textContent.trim() || '';
+            return config.statusOrder.indexOf(badgeText);
+        },
+
+        animateSort(boxes, container) {
+            if (!window.gsap) {
+                boxes.forEach(box => container.appendChild(box));
+                return;
+            }
+
+            const positions = new Map();
+            boxes.forEach(box => positions.set(box, box.getBoundingClientRect()));
+            boxes.forEach(box => container.appendChild(box));
+
+            state.isAnimating = true;
+            let completed = 0;
+
+            boxes.forEach(box => {
+                const oldPos = positions.get(box);
+                const newPos = box.getBoundingClientRect();
+                const from = {
+                    x: oldPos.left - newPos.left,
+                    y: oldPos.top - newPos.top
+                };
+
+                gsap.fromTo(box, from, {
+                    x: 0, y: 0,
+                    duration: config.animationTime / 1000,
+                    ease: "elastic.inOut(1.5,1.5)",
+                    delay: (Math.random()*.6),
+                    onComplete: () => {
+                        completed++;
+                        if (completed === boxes.length) {
+                            state.isAnimating = false;
+                            setTimeout(() => this.scheduleSort(), 500);
+                        }
+                    }
+                });
+            });
+        }
+    };
+
+    // Event handlers
+    const eventHandlers = {
+        setupSSE() {
+            document.body.addEventListener('htmx:sseBeforeMessage', (e) => {
+                state.lastSSEEvent = Date.now(); // <--not sure wehre i was going with this
+                channelManager.updateActivityIndicator();
+                const sseInfo = utils.parseSSEEvent(e);
+                if (!sseInfo.channelId) return;
+
+                const channel = channelManager.getChannel(sseInfo.channelId);
+                channel.lastUpdateTs = Date.now();
+                
+
+                if (sseInfo.logType === "info") {
+                    const ch_sseData = this.extractData(e)
+                    if( ch_sseData.status !== channel.status ) {
+                        channel.status = ch_sseData.status;
+                        channelManager.updateStatus(channel);
+                    }
+                    channelManager.trackFilesize( ch_sseData.filesize , channel );
+                } 
+                //else if (sseInfo.logType === "log" && channel.status === "RECORDING") {
+                   // we don't really need anything from here
+                //}
+                
+                if ( e.detail.elt.closest(".js-is-collapsed") || ( sseInfo.logType === "log" && !e.detail.elt.closest(".ts-box").querySelector("[type=checkbox]").checked ) ) {
+                        e.preventDefault();
+                        state.debugCounters.skipped++;
                 } else {
-                    var divider     = sswe_id.lastIndexOf("-");
-                    var channel_id  = sswe_id.substring(0, divider);
-                    var log_type    = sswe_id.substring( divider + 1 , sswe_id.length ); 
-                    if( cbdvr.debug ) console.log( "["+log_type+"]" +" "+ channel_id +":"+ e.type, e);
+                    state.debugCounters.passed++;
+                }
+                this.updateDebugCounters();
+            });
+
+            document.body.addEventListener('htmx:afterSwap', (e) => {
+                this.scrollLogTextarea(e.detail.elt);
+            });
+        },
+
+        extractData(e) {
+            const match = e.detail.data.match(/class="json-chinfo"[^>]*>([^<]*)<\/span>/);
+            const jsonString = match ? match[1].trim() : null;
+            return JSON.parse( jsonString )
+        },
+
+        setupClickHandlers() {
+            const checkbox = document.getElementById("auto-sort-toggle");
+            checkbox?.addEventListener("change", (e) => {
+                if(e.target.checked) listSorter.scheduleSort();
+            }); 
+
+            document.body.addEventListener('click', (e) => {
+                const channelId = utils.getChannelId(e.target);
+                
+                if (e.target.closest('.btn-openweb')) {
+                    const siteUrl = document.querySelector(".content > .is-start-labeled > .label")?.textContent;
+                    window.open(`${siteUrl}${channelId}/`, '_blank');
+                    utils.cancelEvent(e);
+                    
+                } else if (e.target.closest('.btn-edit')) {
+                    dialogs.editChannel.open(channelId);
+                    utils.cancelEvent(e);
+                    
+                } else if (e.target.closest('.btn-delete')) {
+                    dialogs.confirmDelete.open(channelId);
+                    utils.cancelEvent(e);
+                    
+                } else if (e.target.closest('.ch-status')) {
+                    const isPaused = e.target.closest('.ch-status-paused');
+                    (isPaused ? api.resumeChannel : api.pauseChannel).apply(api,[channelId]);
+                    utils.cancelEvent(e);
+                    
+                } else if (e.target.closest('.channel-thumbnail')) {
+                    const channel = channelManager.getChannel(channelId);
+                    if (['RECORDING', 'QUEUED'].includes(channel.status)) {
+                        this.updateThumbnail(channelId);
+                    } else {
+                        this.toggleCollapse(e);
+                    }
+                    utils.cancelEvent(e);
+                    
+                } else if (e.target.closest('.channel-header')) {
+                    this.toggleCollapse(e);
+                    utils.cancelEvent(e);
                 }
 
+            });
+        },
+
+        setupInputFilters() {
+            const usernameInput = document.getElementById('username-input');
+            if (!usernameInput) return;
+
+            usernameInput.addEventListener('input', (e) => {
+                let value = e.target.value.trim();
+
+                // Extract username from Chaturbate URL
+                if (value.includes('chaturbate.')) {
+                    const match = value.match(/^(?:https?:\/\/)?(?:[a-zA-Z0-9-]+\.)?chaturbate\.[a-z.]+\/([^\/\s?#]+)/i);
+                    if (match) value = match[1];
+                }
+
+                // Clean CSV-style input
+                e.target.value = value
+                    .split(',')
+                    .map(v => v.trim())
+                    .filter(v => v.length > 0)
+                    .join(',');
+            });
+        },
+
+        toggleCollapse(e) {
+            const channelBox = e.target.closest('[channel-id]');
+            if (!channelBox) return;
+
+            const channelId = channelBox.getAttribute("channel-id");
+            const textarea = channelBox.querySelector("textarea");
+            
+            if (channelBox.classList.contains("js-is-collapsed")) { 
+                channelBox.classList.remove("js-is-collapsed");
+                api.updateChannel(channelId);   
+            } else {
+                channelBox.classList.add("js-is-collapsed");
+            }
+            
+            if (textarea) {
+                textarea.style.overflowY = "hidden";
+                setTimeout(() => { textarea.style.overflowY = "auto"; }, 600);
             }
 
-            const events = [
-                'htmx:afterSwap', 'htmx:beforeRequest', 'htmx:beforeSwap',
-                'htmx:afterRequest', 'htmx:configRequest', 'htmx:beforeOnLoad',
-                'htmx:afterOnLoad', 'htmx:beforeSettle', 'htmx:afterSettle',
-                'htmx:sseRefresh', 'htmx:sseBeforeMessage', 'htmx:sseAfterMessage',
-                'htmx:sseError'
-            ];
+            
+        },
 
-            events.forEach(event => document.body.addEventListener(event, doDebug));
+        async updateThumbnail(channelId) {
+            const channelBox = utils.getChannelBox(channelId);
+            if (!channelBox) return;
+
+            channelBox.classList.add("loading-thumbnail");
+            
+            try {
+                await api.updateThumbnail(channelId);
+                this.makeThumbnailUncached(channelId);
+            } catch (error) {
+                console.error("Failed to update thumbnail:", channelId, error);
+            } finally {
+                setTimeout(() => {
+                    channelBox.classList.remove("loading-thumbnail");
+                }, 500);
+            }
+        },
+
+        makeThumbnailUncached(channelId, anticacheInt) {
+            const channel = channelManager.getChannel(channelId);
+            const channelBox = utils.getChannelBox(channelId);
+            const thumbnail = channelBox?.querySelector(".channel-thumbnail");
+            
+            if (thumbnail) {
+                const anticache = anticacheInt || ++channel.thumbAnticache;
+                thumbnail.style.backgroundImage = 
+                    `url(./channel-images/${channelId}.jpg?${anticache}), url(static/default_user.png)`;
+            }
+        },
+
+        scrollLogTextarea(element) {
+            if ( element.closest(".js-is-collapsed") ) return;
+            
+            const textarea = element.tagName === "TEXTAREA" ? element : element.querySelector("textarea");
+            const checkbox = element.closest(".channel-box")?.querySelector("[type=checkbox]");
+            
+            if (textarea && checkbox?.checked) {
+                setTimeout(() => { textarea.scrollTop = textarea.scrollHeight; }, 1);
+            }
+        },
+
+        updateDebugCounters() {
+            if (!config.debug) return;
+            
+            const skippedEl = document.getElementById("sse-skipped");
+            const passedEl = document.getElementById("sse-passed");
+            
+            if (skippedEl) skippedEl.textContent = state.debugCounters.skipped;
+            if (passedEl) skippedEl.textContent = state.debugCounters.passed;
         }
-        // ================================================================================================
+    };
 
+    // Dialog management
+    const dialogs = {
+        editChannel: {
+            open(username) {
+                api.getChannel(username).then(data => {
+                    const dialog = document.getElementById('create-dialog');
+                    if (!dialog) return;
 
+                    // Set edit mode
+                    document.getElementById('edit-flag').value = "true";
+                    
+                    // Fill form
+                    const fields = {
+                        'username-input': data.Username || "",
+                        'select[name="resolution"]': data.Resolution || 1080,
+                        'input[name="priority"]': data.Priority || 0,
+                        'input[name="max_filesize"]': data.MaxFilesizeInt || 0,
+                        'input[name="max_duration"]': data.MaxDurationInt || 0,
+                        'input[name="pattern"]': data.Pattern || ""
+                    };
 
+                    Object.entries(fields).forEach(([selector, value]) => {
+                        const el = document.querySelector(selector);
+                        if (el) el.value = value;
+                    });
 
+                    // Configure dialog
+                    const usernameInput = document.getElementById('username-input');
+                    if (usernameInput) {
+                        usernameInput.readOnly = true;
+                        usernameInput.style.opacity = "0.5";
+                    }
 
+                    const header = dialog.querySelector('.ts-header');
+                    const submitBtn = dialog.querySelector('button[type="submit"]');
+                    
+                    if (header) header.textContent = "Edit Channel";
+                    if (submitBtn) submitBtn.textContent = "Save Changes";
 
+                    dialog.addEventListener('close', this.onClose, { once: true });
+                    dialog.showModal();
+                });
+            },
 
-
-        // ░█▀▀▀ ░█▀▀▀█ ░█▀▀█ 　 ░█▀▀█ ░█▀▀▀█ ░█▄─░█ ░█▀▀▀█ ░█▀▀▀█ ░█─── ░█▀▀▀ 
-        // ░█▀▀▀ ░█──░█ ░█▄▄▀ 　 ░█─── ░█──░█ ░█░█░█ ─▀▀▀▄▄ ░█──░█ ░█─── ░█▀▀▀ 
-        // ░█─── ░█▄▄▄█ ░█─░█ 　 ░█▄▄█ ░█▄▄▄█ ░█──▀█ ░█▄▄▄█ ░█▄▄▄█ ░█▄▄█ ░█▄▄▄
-     
-
-        
-        function getChannelsCSV(){
-            getChannels(function(data){
-                var names = data.map(function(ch) { return ch.Username; }).join(',');
-                console.log( names )
-            })
-        } 
-        // Export your channels list       
-        // call cbdvr.getChannelsCSV() in web console
-
-
-
-        function blurForDemo() {
-            document.body.classList.toggle("blur-for-demo");
-        }  
-        // Blur for screenshots 
-        // call cbdvr.blurForDemo() in web console
-
-        // ================================================================================================
-
-
-
-
-
-        // ░█▀▀█ ░█─░█ ░█▀▀█ ░█─── ▀█▀ ░█▀▀█ 　 ░█▀▄▀█ ░█▀▀▀ ▀▀█▀▀ ░█─░█ ░█▀▀▀█ ░█▀▀▄ ░█▀▀▀█ 
-        // ░█▄▄█ ░█─░█ ░█▀▀▄ ░█─── ░█─ ░█─── 　 ░█░█░█ ░█▀▀▀ ─░█── ░█▀▀█ ░█──░█ ░█─░█ ─▀▀▀▄▄ 
-        // ░█─── ─▀▄▄▀ ░█▄▄█ ░█▄▄█ ▄█▄ ░█▄▄█ 　 ░█──░█ ░█▄▄▄ ─░█── ░█─░█ ░█▄▄▄█ ░█▄▄▀ ░█▄▄▄█
-        
-        //Global/public object for the app
-
-        window.cbdvr = (function(){
-            return {
-                initTs: new Date().getTime(),
-                editChannel: EditChannelDialog.open,
-                sortList: ListSorter.sortNow,
-                enableSSEDebugging: enableSSEDebugging,
-                enableDebug:enableDebug,
-                debug: cbdvr_debug,
-                blurForDemo: blurForDemo,
-                getChannels: getChannels,
-                getChannelsCSV: getChannelsCSV,
-                getChannel: getChannel,
-                resumeChannel: resumeChannel,
-                pauseChannel: pauseChannel,
-                confirmChannelDeletion: confirmChannelDeletion,
-                updateChannelThumbnail:updateChannelThumbnail,
-                insertUserAgent: insertUserAgent,
-                getTrackedChannels:function(){ return ChannelTracker.getChannelsData() }
+            onClose() {
+                console.log("closed")
+                document.getElementById('edit-flag').value = "false";
+                
+                const dialog = document.getElementById('create-dialog');
+                const header = dialog?.querySelector('.ts-header');
+                const submitBtn = dialog?.querySelector('button[type="submit"]');
+                const usernameInput = document.getElementById('username-input');
+                
+                if (header) header.textContent = "Add Channel";
+                if (submitBtn) submitBtn.textContent = "Add Channel";
+                if (usernameInput) {
+                    usernameInput.readOnly = false;
+                    usernameInput.style.opacity = "1";
+                }
             }
-        })()
+        },
 
-        // ================================================================================================
+        confirmDelete: {
+            open(channelId) {
+                const modal = document.getElementById('delete-confirm');
+                if (!modal) return;
 
-    } /* End Of main */ 
+                modal.querySelector('.channel-name').textContent = channelId;
+                const thumbnail = modal.querySelector('.channel-thumbnail');
+                if (thumbnail) {
+                    thumbnail.style.backgroundImage = 
+                        `url('./channel-images/${channelId}.jpg'), url('static/default_user.png')`;
+                }
 
-})()
+                const okBtn = modal.querySelector('.btn-ok');
+                if (okBtn) {
+                    okBtn.onclick = async () => {
+                        try {
+                            await api.stopChannel(channelId);
+                            location.reload();
+                        } catch (error) {
+                            console.error("Failed to delete channel:", channelId, error);
+                        }
+                    };
+                }
+
+                modal.showModal();
+            }
+        }
+    };
+
+    // Initialization
+    async function initialize() {
+        try {
+            utils.log("Initializing Chaturbate DVR Script");
+            
+            try {
+                // In a docker the system time can be something else, which affects the filenaming
+                // This is to show the system time in status bar
+                var data = JSON.parse( document.body.querySelector('#app-data-json')?.textContent.trim() )
+                utils.log("init data: " , data)
+                state.appInitDate = new Date( data.AppInitTs )
+                state.webInitDate = new Date( data.WebInitTs )
+                state.appInitTs = data.AppInitTs
+                state.webInitTs = data.WebInitTs 
+                state.timeOffset = state.webInitTs-Date.now();             
+            }catch(err){
+                utils.log("loading data from .app-data-json failed", err)
+            }
+
+            var clock = (function(){
+                var el = document.body.querySelector('#system-clock')
+                setInterval(function(){
+                    el.textContent = utils.formatTime( new Date(Date.now() + state.timeOffset ) )
+                },500)
+            })()
+
+
+            
+            // Load channel data
+            const channelsData = await api.getChannels();
+            channelsData.forEach(chInfo => {
+                const channel = channelManager.getChannel(chInfo.Username);
+                channel.status = chInfo.IsPaused ? "PAUSED" :
+                                chInfo.IsBlocked ? "BLOCKED" :
+                                chInfo.IsDownPrioritized ? "QUEUED" :
+                                chInfo.IsOnline ? "RECORDING" : "OFFLINE";
+            });
+
+            // Setup event handlers
+            eventHandlers.setupSSE();
+            eventHandlers.setupClickHandlers();
+            eventHandlers.setupInputFilters();
+
+            // Setup mouse tracking for sort delays
+            document.body.addEventListener('mousemove', () => {
+                state.lastUserMoved = Date.now();
+            });
+
+            // Save state on unload
+            window.addEventListener("beforeunload", () => {
+                sessionStorage.setItem("channels", JSON.stringify(state.channels));
+            });
+
+            // Initial updates
+            setTimeout(() => {
+                channelManager.updateCounters();
+                Object.values(state.channels).forEach(ch => {
+                    if (ch.thumbAnticache) {
+                        eventHandlers.makeThumbnailUncached(ch.id, ch.thumbAnticache);
+                    }
+                });
+            }, 500);
+
+            // Setup periodic updates
+            setInterval(() => channelManager.updateThroughput(), 1000);
+
+            utils.log("Initialization complete");
+            utils.log("State", state)
+        } catch (error) {
+            console.error("Failed to initialize:", error);
+        }
+    }
+
+    // Public API
+    window.cbdvr = {
+        // Core functionality
+        editChannel: dialogs.editChannel.open,
+        getChannels: () => api.getChannels(),
+        getChannel: (username) => api.getChannel(username),
+        pauseChannel: (id) => api.pauseChannel(id),
+        resumeChannel: (id) => api.resumeChannel(id),
+        updateThumbnail: (id) => eventHandlers.updateThumbnail(id),
+        channelManager: channelManager,
+        // Utility functions
+        enableDebug() {
+            config.debug = !config.debug;
+            document.body.classList.toggle("debug");
+        },
+        
+        blurForDemo() {
+            document.body.classList.toggle("blur-for-demo");
+        },
+        
+        getChannelsCSV() {
+            api.getChannels().then(data => {
+                const names = data.map(ch => ch.Username).join(',');
+                console.log(names);
+            });
+        },
+        
+        insertUserAgent() {
+            const textarea = document.querySelector('#settings-dialog textarea[name="user_agent"]');
+            if (textarea) textarea.value = navigator.userAgent;
+        },
+        
+        // Debug utilities
+        getTrackedChannels: () => state.channels,
+        debug: config.debug
+    };
+
+    // Start the application
+    document.addEventListener("DOMContentLoaded", initialize);
+    setTimeout(balloon,20)
+
+
+})();
+
+
+function balloon(){
+    if(balloon.animating) return
+    var el = document.body.querySelector('.lil-bandit-balloon');
+    if( !balloon.ran ) {
+        el.addEventListener("mouseover", balloon)
+    }
+    
+    balloon.animating = true;
+    const tl = gsap.timeline();
+    el.classList.add("animating")
+    tl.to(el, {y: -140,x: 350, scale:2,duration: balloon.ran ? 7:0, opacity: balloon.ran ? 1:0, rotation:55, ease: "power1.in"})
+        .to(el, {y: 80, x: -150, opacity:0, duration: 0,  rotation:-55, onComplete:function(){ el.classList.remove("animating")}})
+        .to(el, {y: 0,x: 0,duration: 12,opacity:.8,scale:1, rotation:0, ease: "elastic.out(.5,.5)",onComplete:function(){balloon.animating = false;}}); 
+    balloon.ran = true    
+}
+

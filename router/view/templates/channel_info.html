@@ -1,9 +1,6 @@
 {{ define "channel_info" }}
 
-<span class="js-status-text-hook" style="display:none;">
-    {{ if .IsPaused }}PAUSED{{ else if .IsBlocked }}BLOCKED{{ else if .IsDownPrioritized }}QUEUED{{ else if .IsOnline }}RECORDING{{ else }}OFFLINE{{ end }}
-</span>
-
+<span class="json-chinfo" style="display:none;">{"filesize":{{.FilesizeBytes}},"status":"{{if .IsPaused}}PAUSED{{else if .IsBlocked}}BLOCKED{{else if .IsDownPrioritized}}QUEUED{{else if .IsOnline}}RECORDING{{else}}OFFLINE{{end}}"}</span>
 <div class="ts-divider"></div>
 
 <!-- Info: Channel URL -->

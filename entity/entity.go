@@ -42,12 +42,14 @@ type ChannelInfo struct {
 	Username          string
 	Duration          string
 	Filesize          string
-	Filename          string
-	StreamedAt        string
-	MaxDuration       string
-	MaxFilesize       string
-	MaxFilesizeInt    int
-	MaxDurationInt    int
+	//DurationInt       int
+	FilesizeBytes  string
+	Filename       string
+	StreamedAt     string
+	MaxDuration    string
+	MaxFilesize    string
+	MaxFilesizeInt int
+	MaxDurationInt int
 	//MinFilesize       string
 	CreatedAt    int64
 	Logs         []string
@@ -81,6 +83,8 @@ type AppConfig struct {
 // Config holds the configuration for the application.
 type Config struct {
 	Version         string
+	AppInitTs          int64
+	WebInitTs       int64
 	Username        string
 	AdminUsername   string
 	AdminPassword   string
