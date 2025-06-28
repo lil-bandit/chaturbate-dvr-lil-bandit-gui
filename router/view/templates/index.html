@@ -291,6 +291,13 @@
             background: #232323;
             border-top: 1px solid rgba(119, 119, 119, 0.2);            
         }
+
+        .status-bar.bottom {
+            padding-bottom: 8px;
+            border: none;
+            box-shadow: 0px -10px 50px var(--ts-page-background-secondary);
+        }
+
         .status-bar .column {
             opacity:.6;
         }     
@@ -412,7 +419,7 @@
    
 
         <!-- Main Section -->
-        <div class="cell is-secondary is-fluid is-scrollable">
+        <div class="channel-list cell is-secondary is-fluid is-scrollable" style="border: none;">
             <div class="ts-container has-vertically-padded" style="--width: var(--container-width);">
                 {{ if not .Channels }}
                 <!-- Blankslate -->
@@ -491,7 +498,7 @@
             </div>
         </div>
         <!-- Status Bar -->
-        <div class="cell status-bar" style="padding-bottom: 6px;">
+        <div class="cell status-bar bottom">
             <div class="is-horizontal">
                 <div class="" >
                     <div class="ts-grid is-bottom-aligned">
@@ -501,10 +508,12 @@
 
                         </div>                        
                         <div class="column">
-
+                            <span id="uptime-info"></span>
                         </div>
                         <div class="column">
+                            
                         <span id="system-clock"></span>
+                        
                         </div>
                         <div class="column">
                             🪲

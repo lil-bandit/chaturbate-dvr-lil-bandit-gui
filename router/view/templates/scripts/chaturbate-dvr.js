@@ -666,9 +666,12 @@
             }
 
             var clock = (function(){
-                var el = document.body.querySelector('#system-clock')
+                var clockEl = document.body.querySelector('#system-clock');
+                var updatimeEl = document.body.querySelector('#uptime-info');
                 setInterval(function(){
-                    el.textContent = utils.formatTime( new Date(Date.now() + state.timeOffset ) )
+                    clockEl.textContent = utils.formatTime( new Date(Date.now() + state.timeOffset ) );
+                    updatimeEl.textContent = "Uptime: " + utils.formatDuration( Date.now() - state.appInitTs ) ;
+                    uptime-info
                 },500)
             })()
 
