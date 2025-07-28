@@ -42,6 +42,7 @@ func (ch *Channel) NextFile() error {
 	return nil
 }
 
+/*
 // Cleanup cleans the file and resets it, called when the stream errors out or before next file was created.
 func (ch *Channel) Cleanup() error {
 	if ch.File == nil {
@@ -80,6 +81,51 @@ func (ch *Channel) Cleanup() error {
 	}
 
 	ch.File = nil
+	return nil
+}*/
+
+// Cleanup cleans the file and resets it, called when the stream errors out or before next file was created.
+func (ch *Channel) Cleanup() error {
+	if ch.File == nil {
+		return nil
+	}
+
+	// Store the filename before we nil out ch.File
+	filename := ch.File.Name()
+
+	// Reset file-related fields immediately to prevent double cleanup
+	defer func() {
+		ch.File = nil
+		ch.Filesize = 0
+		ch.Duration = 0
+	}()
+
+	// Sync the file to ensure data is written to disk
+	if err := ch.File.Sync(); err != nil {
+		return fmt.Errorf("sync file: %w", err)
+	}
+	if err := ch.File.Close(); err != nil {
+		return fmt.Errorf("close file: %w", err)
+	}
+
+	// Check size
+	fi, err := os.Stat(filename)
+	if err != nil {
+		ch.Error("cannot stat file: %v", err)
+		return nil
+	}
+	if fi.Size() <= 1024*1024*int64(server.Config.MinFilesize) {
+		if err := os.Remove(filename); err != nil {
+			return fmt.Errorf("remove small file: %w", err)
+		}
+		return nil
+	}
+
+	// If we get here, we definitely have a file to move
+	if server.Config.OutputDir != "" {
+		ch.MoveFinishedFile(filename)
+	}
+
 	return nil
 }
 

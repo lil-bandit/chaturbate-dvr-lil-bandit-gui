@@ -124,10 +124,12 @@ func ParsePlaylist(resp, hlsSource string, resolution, framerate int) (*Playlist
 
 // Playlist represents an HLS playlist containing variant streams.
 type Playlist struct {
-	PlaylistURL string
-	RootURL     string
-	Resolution  int
-	Framerate   int
+	PlaylistURL       string
+	RootURL           string
+	Resolution        int
+	Framerate         int
+	LowestResolution  int
+	LowestPlaylistURL string
 }
 
 // Resolution represents a video resolution and its corresponding framerate.
@@ -151,6 +153,8 @@ func PickPlaylist(masterPlaylist *m3u8.MasterPlaylist, baseURL string, resolutio
 			return nil, fmt.Errorf("parse resolution: %w", err)
 		}
 		framerateVal := 30
+
+		fmt.Println("Variant Name:", v.Name)
 		if strings.Contains(v.Name, "FPS:60.0") {
 			framerateVal = 60
 		}
@@ -159,7 +163,12 @@ func PickPlaylist(masterPlaylist *m3u8.MasterPlaylist, baseURL string, resolutio
 		}
 		resolutions[width].Framerate[framerateVal] = v.URI
 	}
-
+	jsonData, err := json.MarshalIndent(resolutions, "", "  ")
+	if err != nil {
+		fmt.Println("Error marshaling resolutions:", err)
+	} else {
+		fmt.Println(string(jsonData))
+	}
 	// Find exact match for requested resolution
 	variant, exists := resolutions[resolution]
 	if !exists {
@@ -190,11 +199,33 @@ func PickPlaylist(masterPlaylist *m3u8.MasterPlaylist, baseURL string, resolutio
 		}
 	}
 
+	// Find the lowest available resolution
+	lowestRes := -1
+	for w := range resolutions {
+		if lowestRes == -1 || w < lowestRes {
+			lowestRes = w
+		}
+	}
+	lowestPlaylistURL := ""
+	if lowestRes != -1 {
+		// Pick any framerate for the lowest resolution (prefer 30 if available)
+		if url, ok := resolutions[lowestRes].Framerate[30]; ok {
+			lowestPlaylistURL = strings.TrimSuffix(baseURL, "playlist.m3u8") + url
+		} else {
+			for _, url := range resolutions[lowestRes].Framerate {
+				lowestPlaylistURL = strings.TrimSuffix(baseURL, "playlist.m3u8") + url
+				break
+			}
+		}
+	}
+
 	return &Playlist{
-		PlaylistURL: strings.TrimSuffix(baseURL, "playlist.m3u8") + playlistURL,
-		RootURL:     strings.TrimSuffix(baseURL, "playlist.m3u8"),
-		Resolution:  finalResolution,
-		Framerate:   finalFramerate,
+		PlaylistURL:       strings.TrimSuffix(baseURL, "playlist.m3u8") + playlistURL,
+		RootURL:           strings.TrimSuffix(baseURL, "playlist.m3u8"),
+		Resolution:        finalResolution,
+		Framerate:         finalFramerate,
+		LowestResolution:  lowestRes,
+		LowestPlaylistURL: lowestPlaylistURL,
 	}, nil
 }
 
@@ -207,7 +238,7 @@ func (p *Playlist) WatchSegments(ctx context.Context, handler WatchHandler) erro
 		client  = internal.NewReq()
 		lastSeq = -1
 	)
-
+	fmt.Println("p.PlaylistURL:", p.PlaylistURL)
 	for {
 		// Fetch the latest playlist
 		resp, err := client.Get(ctx, p.PlaylistURL)

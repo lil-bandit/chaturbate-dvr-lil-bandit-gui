@@ -1,6 +1,17 @@
 {{ define "channel_info" }}
-
-<span class="json-chinfo" style="display:none;">{"filesize":{{.FilesizeBytes}},"status":"{{if .IsPaused}}PAUSED{{else if .IsBlocked}}BLOCKED{{else if .IsDownPrioritized}}QUEUED{{else if .IsOnline}}RECORDING{{else}}OFFLINE{{end}}"}</span>
+<script type="application/json" class="json-channel-data">
+  {
+        "channelId":"{{.Username}}",
+        
+        "streamedAt":"{{ if .StreamedAt }}{{ .StreamedAt }} {{ if and .IsOnline (not .IsPaused) }}(NOW){{ end }}{{ else }} - {{ end }}",
+        "streamedAtUnix":{{.StreamedAtUnix}},
+        "filesizeBytes":{{.FilesizeBytes}},
+        "filesize":"{{ if .Filesize }} {{ .Filesize }} {{ if .MaxFilesize }} / {{ .MaxFilesize }} {{ end }} {{ else }} - {{ end }}",
+        "filename":"{{.Filename}}",
+        "duration":"{{ if .Duration }} {{ .Duration }} {{ if .MaxDuration }} / {{ .MaxDuration }} {{ end }} {{ else }} - {{ end }}",
+        "status":"{{if .IsPaused}}PAUSED{{else if .IsBlocked}}BLOCKED{{else if .IsQueued}}QUEUED{{else if .IsOnline}}RECORDING{{else}}OFFLINE{{end}}"
+  }
+</script>
 <div class="ts-divider"></div>
 
 <!-- Info: Channel URL -->
@@ -10,7 +21,7 @@
     </div>
     <div class="column is-fluid">
         <div class="ts-text is-small is-bold">Channel URL</div>
-        <a class="ts-text is-small is-link is-external-link" href="{{ .GlobalConfig.Domain }}{{ .Username }}" target="_blank"> {{ .GlobalConfig.Domain }}{{ .Username }}</a>
+        <a class="ts-text is-small is-link is-external-link" href="{{ .GlobalConfig.Domain }}{{ .Username }}" target="_blank" > {{ .GlobalConfig.Domain }}{{ .Username }}</a>
     </div>
 </div>
 <!-- / Info: Channel URL -->
@@ -22,11 +33,7 @@
     </div>
     <div class="column is-fluid">
         <div class="ts-text is-small is-bold">Filename</div>
-        {{ if .Filename }}
-        <div class="ts-text is-description">{{ .Filename }}</div>
-        {{ else }}
-        <span>-</span>
-        {{ end }}
+        <div class="ts-text is-description" data-value-id="filename">{{ if .Filename }}{{ if ne .Filename "" }}{{ .Filename }}{{ else }}-{{ end }}{{ else }}-{{ end }}</div>
     </div>
 </div>
 <!-- / Info: Filename -->
@@ -38,7 +45,7 @@
     </div>
     <div class="column is-fluid">
         <div class="ts-text is-small is-bold">Last streamed at</div>
-        <div class="ts-text is-description">{{ if .StreamedAt }}{{ .StreamedAt }} {{ if and .IsOnline (not .IsPaused) }}(NOW){{ end }}{{ else }} - {{ end }}</div>
+        <div class="ts-text is-description" data-value-id="streamedAt">{{ if .StreamedAt }}{{ .StreamedAt }} {{ if and .IsOnline (not .IsPaused) }}(NOW){{ end }}{{ else }} - {{ end }}</div>
     </div>
 </div>
 <!-- / Info: Last streamed at -->
@@ -50,7 +57,7 @@
     </div>
     <div class="column is-fluid">
         <div class="ts-text is-small is-bold">Segment duration</div>
-        <div class="ts-text is-description">{{ if .Duration }} {{ .Duration }} {{ if .MaxDuration }} / {{ .MaxDuration }} {{ end }} {{ else }} - {{ end }}</div>
+        <div class="ts-text is-description" data-value-id="duration">{{ if .Duration }} {{ .Duration }} {{ if .MaxDuration }} / {{ .MaxDuration }} {{ end }} {{ else }} - {{ end }}</div>
     </div>
 </div>
 <!-- / Info: Segment duration -->
@@ -62,7 +69,7 @@
     </div>
     <div class="column is-fluid">
         <div class="ts-text is-small is-bold">Segment filesize</div>
-        <div class="ts-text is-description">{{ if .Filesize }} {{ .Filesize }} {{ if .MaxFilesize }} / {{ .MaxFilesize }} {{ end }} {{ else }} - {{ end }}</div>
+        <div class="ts-text is-description" data-value-id="filesize">{{ if .Filesize }} {{ .Filesize }} {{ if .MaxFilesize }} / {{ .MaxFilesize }} {{ end }} {{ else }} - {{ end }}</div>
     </div>
 </div>
 <!-- / Info: Segment filesize -->

@@ -19,8 +19,12 @@ type Channel struct {
 	UpdateCh   chan bool
 
 	IsOnline          bool
-	IsDownPrioritized bool
-	IsBlocked         bool // Used for blocking channels
+	IsQueued          bool
+	IsResetting       bool
+	IsChecking        bool
+	WantsToCancel     bool
+	IsBlocked         bool   // Used for blocking channels
+	LowresPlaylistURL string // Used for blocking channels
 	StreamedAt        int64
 	Duration          float64 // Seconds
 	Filesize          int     // Bytes
@@ -72,7 +76,7 @@ func (ch *Channel) Publisher() {
 // This is used to cancel the context when the channel is stopped or paused.
 func (ch *Channel) WithCancel(ctx context.Context) (context.Context, context.CancelFunc) {
 	ctx, ch.CancelFunc = context.WithCancel(ctx)
-	log.Printf(" INFO [%s] %s", ch.Config.Username, "STOP")
+	log.Printf(" INFO [%s] %s", ch.Config.Username, "STOP") // <-- is this firing at the intended time?
 	return ctx, ch.CancelFunc
 }
 
@@ -97,63 +101,114 @@ func (ch *Channel) ExportInfo() *entity.ChannelInfo {
 	var streamedAt string
 	if ch.StreamedAt != 0 {
 		streamedAt = time.Unix(ch.StreamedAt, 0).Format("2006-01-02 15:04 AM")
+		ch.Config.RecordedAt = ch.StreamedAt /*lil-bandit*/
 	}
+
 	return &entity.ChannelInfo{
-		IsOnline:          ch.IsOnline,
-		IsPaused:          ch.Config.IsPaused,
-		IsDownPrioritized: ch.IsDownPrioritized,
-		IsBlocked:         ch.IsBlocked,
-		Username:          ch.Config.Username,
-		MaxDuration:       internal.FormatDuration(float64(ch.Config.MaxDuration * 60)), // MaxDuration from config is in minutes
-		MaxFilesize:       internal.FormatFilesize(ch.Config.MaxFilesize * 1024 * 1024), // MaxFilesize from config is in MB
-		//MinFilesize:       internal.FormatFilesize(ch.Config.MinFilesize * 1024 * 1024), // MinFilesize from config is in MB
-		StreamedAt: streamedAt,
-		CreatedAt:  ch.Config.CreatedAt,
-		Duration:   internal.FormatDuration(ch.Duration),
-		Filesize:   internal.FormatFilesize(ch.Filesize),
+		IsOnline:     ch.IsOnline,
+		IsPaused:     ch.Config.IsPaused,
+		IsQueued:     ch.IsQueued,
+		IsBlocked:    ch.IsBlocked,
+		Username:     ch.Config.Username,
+		MaxDuration:  internal.FormatDuration(float64(ch.Config.MaxDuration * 60)),      // MaxDuration from config is in minutes
+		MaxFilesize:  internal.FormatFilesize(ch.Config.MaxFilesize * 1024 * 1024), // MaxFilesize from config is in MB
+		StreamedAt:   streamedAt,
+		CreatedAt:    ch.Config.CreatedAt,
+		Duration:     internal.FormatDuration(ch.Duration),
+		Filesize:     internal.FormatFilesize(ch.Filesize),
+		Filename:     filename,
+		Logs:         ch.Logs,
+		GlobalConfig: server.Config,
+
+		/* < lil-bandit */
+		Framerate:         ch.Config.Framerate,
+		Resolution:        ch.Config.Resolution,
+		Pattern:           ch.Config.Pattern,
+		Priority:          ch.Config.Priority,
+		FilesizeBytes:     ch.Filesize,
+		StreamedAtUnix:    ch.StreamedAt,
+		MaxFilesizeInt:    ch.Config.MaxFilesize,
+		MaxDurationInt:    ch.Config.MaxDuration,
+		LowresPlaylistURL: ch.LowresPlaylistURL,
+		/* > lil-bandit */
+
 		//DurationInt:    ch.Duration,
-		FilesizeBytes:  fmt.Sprintf("%d", ch.Filesize),
-		Priority:       ch.Config.Priority,
-		Filename:       filename,
-		Logs:           ch.Logs,
-		GlobalConfig:   server.Config,
-		MaxFilesizeInt: ch.Config.MaxFilesize,
-		MaxDurationInt: ch.Config.MaxDuration,
-		Framerate:      ch.Config.Framerate,
-		Resolution:     ch.Config.Resolution,
-		Pattern:        ch.Config.Pattern,
+		//MinFilesize:       internal.FormatFilesize(ch.Config.MinFilesize * 1024 * 1024), // MinFilesize from config is in MB
 	}
 }
 
-// Recycle pauses the channel and cancels the context.
-// This is called when a channel with higher priority is online, and MaxConnections is reached.
-
-func (ch *Channel) DownPrioritize() {
-	// Stop the monitoring loop
+func (ch *Channel) BumpQueue(seq int) {
+	if ch.IsResetting || !ch.IsQueued || ch.IsOnline {
+		return
+	}
+	// This only matters for channels that are queued and not recording
+	ch.IsResetting = true
 	ch.CancelFunc()
-	ch.IsDownPrioritized = true
-	ch.Sequence = 0
-	ch.IsOnline = false
-
-	time_delay := time.Duration(server.Config.Interval) * time.Minute
-	ch.Update()
-	ch.Info("Downprioritized [%s]", ch.Config.Username)
-
-	<-time.After(time_delay) // Wait for the interval before starting the monitoring again
-
-	// Resume the channel monitoring after the delay
+	<-time.After(time.Duration(seq) * time.Millisecond * 50)
+	ch.IsResetting = false
 	go ch.Monitor()
 }
 
+func (ch *Channel) Queue(seq int) {
+	if !ch.IsOnline || ch.IsQueued {
+		return
+	}
+	// This will make handleSegment "cancel" the file
+	ch.IsQueued = true
+
+	/*
+		<-time.After(time.Duration(seq) * time.Millisecond * 50)
+		if ch.IsOnline {
+			ch.IsQueued = true
+		}
+	*/
+}
+
+/*
+func (ch *Channel) Reset() {
+	if ch.IsResetting {
+		return
+	}
+	ch.IsResetting = true
+	if ch.IsOnline && ch.Duration < 3 {
+		// Extra safe guard
+		return
+	}
+
+	fmt.Printf("🔄 Reset() instance: %p Username: %s\n", ch, ch.Config.Username)
+	ch.Info("Reset [%s]", ch.Config.Username)
+
+	// Cancel any ongoing monitoring and signal that we’re prepping for reset
+	ch.CancelFunc()
+
+	if ch.IsOnline {
+		// Wait for channel to go offline before resuming monitor
+		ch.IsQueued = true
+		deadline := time.Now().Add(30 * time.Second)
+		for time.Now().Before(deadline) {
+			if !ch.IsOnline && ch.Filesize == 0 && ch.IsResetting {
+				go ch.Monitor()
+				return
+			} else {
+				//try again
+			}
+			fmt.Printf("⌛ Channel: %s is still active\n", ch.Config.Username)
+			time.Sleep(2000 * time.Millisecond)
+		}
+		fmt.Println("❌ Timeout: Channel did not go offline in time.")
+	} else {
+		go ch.Monitor()
+	}
+}
+*/
 // Pause pauses the channel and cancels the context.
 func (ch *Channel) Pause() {
 	// Stop the monitoring loop
 	ch.CancelFunc()
 
-	ch.Config.IsPaused = true
-	ch.Sequence = 0
-	ch.IsOnline = false
-
+	ch.Config.IsPaused = true // This will stop active recording
+	ch.IsQueued = false
+	ch.IsBlocked = false
 	ch.Update()
 	ch.Info("channel paused")
 }
@@ -162,7 +217,6 @@ func (ch *Channel) Pause() {
 func (ch *Channel) Stop() {
 	// Stop the monitoring loop
 	ch.CancelFunc()
-
 	ch.Info("channel stopped")
 }
 
@@ -171,10 +225,11 @@ func (ch *Channel) Stop() {
 // `startSeq` is used to prevent all channels from starting at the same time, preventing TooManyRequests errors.
 // It's only be used when program starting and trying to resume all channels at once.
 func (ch *Channel) Resume(startSeq int) {
+	ch.Info("channel resumed")
+
 	ch.Config.IsPaused = false
 
 	ch.Update()
-	ch.Info("channel resumed")
 
 	<-time.After(time.Duration(startSeq) * time.Second)
 	go ch.Monitor()

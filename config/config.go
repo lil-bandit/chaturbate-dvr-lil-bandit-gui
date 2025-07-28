@@ -11,15 +11,15 @@ import (
 func New(c *cli.Context) (*entity.Config, error) {
 	return &entity.Config{
 		Version:         c.App.Version,
-		AppInitTs:       time.Now().UnixMilli(),
-		WebInitTs:       time.Now().UnixMilli(),
+		AppInitUnixMs:   time.Now().UnixMilli(),
+		WebInitUnixMs:   time.Now().UnixMilli(),
 		Username:        c.String("username"),
 		AdminUsername:   c.String("admin-username"),
 		AdminPassword:   c.String("admin-password"),
 		Framerate:       c.Int("framerate"),
 		Resolution:      c.Int("resolution"),
 		Pattern:         c.String("pattern"),
-		MaxDuration:     c.Int("max-duration") * 60,
+		MaxDuration:     c.Int("max-duration"),
 		MaxFilesize:     c.Int("max-filesize"),
 		MinFilesize:     c.Int("min-filesize"),
 		MaxConnections:  c.Int("max-connections"),

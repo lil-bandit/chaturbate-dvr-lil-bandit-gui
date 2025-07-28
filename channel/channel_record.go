@@ -15,17 +15,20 @@ import (
 // Monitor starts monitoring the channel for live streams and records them.
 func (ch *Channel) Monitor() {
 	client := chaturbate.NewClient()
-	ch.Info("starting to monitor `%s`", ch.Config.Username)
-
+	if !ch.IsQueued {
+		ch.Info("starting to monitor `%s`", ch.Config.Username)
+	} else {
+		ch.Info("starting to monitor `%s` after being queued", ch.Config.Username)
+	}
 	// Create a new context with a cancel function,
 	// the CancelFunc will be stored in the channel's CancelFunc field
 	// and will be called by `Pause` or `Stop` functions
 	ctx, _ := ch.WithCancel(context.Background())
-
 	var err error
 	for {
 
 		if err = ctx.Err(); err != nil {
+			fmt.Printf("BROKE (%s) \n", err)
 			break
 		}
 
@@ -33,31 +36,30 @@ func (ch *Channel) Monitor() {
 			return ch.RecordStream(ctx, client)
 		}
 		onRetry := func(_ uint, err error) {
-			ch.IsBlocked = false
-			ch.IsDownPrioritized = false
-			ch.IsOnline = false // not sure this is needed
+			fmt.Printf("RETRY (%s) ERROR: %s \n", ch.Config.Username, err)
+			ch.IsOnline = false    // important - If we are in a retry, then we're not recording.
+			ch.IsQueued = false    // resetting ch.IsQueued ( true means: online but not allowed to start )
+			ch.IsBlocked = false   // Re-evaluate isBlocked
+			ch.IsResetting = false // ch.IsResetting is set to true in ch.Reset() method to avoid silmultanous calls - not sure if this is needed
 
-			// Possible fix to #114 0KB bug
-			if ch.File != nil {
-				if err := ch.Cleanup(); err != nil {
-					ch.Error("cleanup on retry: %v", err)
-				}
-			}
-
-			if errors.Is(err, internal.ErrDownPrioritized) {
-				ch.IsDownPrioritized = true
-				ch.Info("Waiting for slot: retrying in %d min(s)", server.Config.Interval)
+			if errors.Is(err, internal.ErrNotWorthy) {
+				ch.IsQueued = true
+				ch.Info("channel does not have priority to start, try again in %d min(s)", server.Config.Interval)
+			} else if errors.Is(err, internal.ErrDownPrioritized) {
+				ch.IsQueued = true
+				ch.Info("channel was stopped due to low priority, try again in %d min(s)", server.Config.Interval)
 			} else if errors.Is(err, internal.ErrChannelOffline) {
 				ch.Info("channel is offline, try again in %d min(s)", server.Config.Interval)
 			} else if errors.Is(err, internal.ErrCloudflareBlocked) {
 				ch.IsBlocked = true
 				ch.Info("channel was blocked by Cloudflare; try with `-cookies` and `-user-agent`? try again in %d min(s)", server.Config.Interval)
 			} else if errors.Is(err, context.Canceled) {
+				fmt.Printf("context.Canceled Channel: %s is still online \n", ch.Config.Username)
 				// ...
 			} else {
 				ch.Error("on retry: %s: retrying in %d min(s)", err.Error(), server.Config.Interval)
 			}
-			ch.Update()
+			ch.Update() /* lil-bandit - update ui ( to update badge ) */
 		}
 		if err = retry.Do(
 			pipeline,
@@ -69,7 +71,7 @@ func (ch *Channel) Monitor() {
 		); err != nil {
 			break
 		} else {
-			ch.Error("RECORDING RIGHT? or finished")
+			ch.Error("Retry Error")
 		}
 	}
 
@@ -100,26 +102,44 @@ func (ch *Channel) RecordStream(ctx context.Context, client *chaturbate.Client) 
 		return fmt.Errorf("get stream: %w", err)
 	}
 
-	/* Priority management */
-	canStart := server.Manager.PreemptForPriority(ch.Config.Priority)
-	if !canStart {
-		ch.Info("Channel is online, but maximum connections reached or priority too low. Retrying in %d min(s)...", server.Config.Interval)
-		return internal.ErrDownPrioritized // or define your own error
-	}
-	ch.IsBlocked = false
-	ch.IsOnline = true
 	ch.StreamedAt = time.Now().Unix()
 	ch.Sequence = 0
-
 	if err := ch.NextFile(); err != nil {
 		return fmt.Errorf("next file: %w", err)
 	}
 
+	// Ensure file is cleaned up when this function exits in any case
+	defer func() {
+		if err := ch.Cleanup(); err != nil {
+			ch.Error("cleanup on record stream exit: %s", err.Error())
+		}
+	}()
+
 	playlist, err := stream.GetPlaylist(ctx, ch.Config.Resolution, ch.Config.Framerate)
+
 	if err != nil {
+		if playlist != nil && playlist.LowestPlaylistURL != "" {
+			ch.LowresPlaylistURL = playlist.LowestPlaylistURL
+		}
 		return fmt.Errorf("get playlist: %w", err)
 	}
 
+	/* Priority management */
+	canStart := server.Manager.PriorityEnforcer(ch.Config.Username)
+	if !canStart {
+		return internal.ErrNotWorthy // or define your own error
+	}
+
+	ch.IsOnline = true
+
+	/* < lil-bandit */
+	ch.IsBlocked = false
+	ch.IsQueued = false
+	ch.IsResetting = false // Not sure if this is needed
+	/* > lil-bandit */
+
+	//ch.Sequence = 0
+	ch.Update()
 	ch.Info("stream quality - resolution %dp (target: %dp), framerate %dfps (target: %dfps)", playlist.Resolution, ch.Config.Resolution, playlist.Framerate, ch.Config.Framerate)
 
 	return playlist.WatchSegments(ctx, ch.HandleSegment)
@@ -127,8 +147,15 @@ func (ch *Channel) RecordStream(ctx context.Context, client *chaturbate.Client) 
 
 // HandleSegment processes and writes segment data to a file.
 func (ch *Channel) HandleSegment(b []byte, duration float64) error {
+	//fmt.Printf("--> HANDLE %t\n", ch.IsQueued)
+
 	if ch.Config.IsPaused {
 		return retry.Unrecoverable(internal.ErrPaused)
+	}
+
+	if ch.IsQueued {
+		//return retry.Unrecoverable(internal.ErrPaused)
+		return internal.ErrDownPrioritized // this will be retried
 	}
 
 	n, err := ch.File.Write(b)

@@ -1,562 +1,216 @@
+
+
 (function() {
     'use strict';
-
+//--App.js ============================================================================
     // Configuration and state
-    const config = {
+     const config = {
         debug: new URLSearchParams(window.location.search).has("debug"),
-        animationTime: 2000,
+        animationTime: 1700,
         statusOrder: ['RECORDING', 'QUEUED', 'BLOCKED', 'OFFLINE', 'PAUSED']
     };
 
+   
+    /*const state = JSON.parse( sessionStorage.getItem("state") || 0 ) || {
+        fatalAppError: false,
+        appInitData: {},
+        UiUnixMs: Date.now(),
+        debugCounters: { skipped: 0, passed: 0 }
+    };*/
     const state = {
-        channels: {},
-        sessionChannels: JSON.parse(sessionStorage.getItem("channels") || "{}"),
-        lastOrder: [],
-        lastUserMoved: 0,
-        lastSSEEvent:0,
-        isAnimating: false,
-        appInitDate: null,
-        webInitDate: null,
-        appInitTs: 0,
-        webInitTs: 0,        
+        fatalAppError: false,
+        appInitData: {},
+        UiUnixMs: Date.now(),
         debugCounters: { skipped: 0, passed: 0 }
     };
 
-    // Utility functions
+  
+    const App = {
+        async init(){
+            App.serverMonitor = new ServerMonitor()
+            App.channelView = new ChannelView();
+            App.ui = new UI();            
+            utils.log(":: Initializing Chaturbate DVR Script (Page load)");
+            utils.log("===========================================");
+
+            
+            // Inline JSON data in page, served from go
+            state.appInitData = JSON.parse( document.getElementById('json-app-data')?.textContent.trim() || {} )
+            state.timeOffset = state.appInitData.WebInitUnixMs-Date.now();
+            
+            // Init stuff
+            await App.serverMonitor.init();
+            App.logger.enable();
+            App.channelView.init();
+            App.ui.init()   
+            
+            // Use events
+            App.serverMonitor.addEventListener("onChannelStatusChange", function(monitorEvent){
+                var channelObject = monitorEvent.detail.channel;
+                App.channelView.updateChannelStatus( channelObject ); 
+            })
+
+            App.serverMonitor.addEventListener("onAppUnreachable", function(monitorEvent){
+                state.fatalAppError = true  
+            })
+
+            App.serverMonitor.addEventListener("onInfoUpdate", function(monitorEvent){
+                var channelObject = monitorEvent.detail.channel;
+                App.channelView.updateChannelInfo( channelObject );
+
+                
+            })
+            App.serverMonitor.addEventListener("onLogUpdate", function(monitorEvent){
+                var channelObject = monitorEvent.detail.channel;
+                //utils.log(channelObject.lastLogLine)
+                App.channelView.updateLog( channelObject );
+                             
+            })
+            // App.serverMonitor.addEventListener("onChannelUpdate",function(e){})
+
+            utils.log("===========================================");
+            utils.log(":: Initialization complete");
+        }
+    }
+//--Utils.js ============================================================================
     const utils = {
-        log: (...args) => config.debug && console.log(...args),
-        
+        log: (...args) => { if (config.debug) { console.log(`${utils.formatTime(null,true)} |`, ...args);} }, 
+
         cancelEvent(e) {
             e.stopPropagation();
             e.preventDefault();
         },
 
-        getChannelId(element) {
+        getChannelIdFromElement(element) {
             const channelEl = element.closest('[channel-id]');
             return channelEl?.getAttribute("channel-id") || "";
         },
 
-        getChannelBox(channelId) {
-            return document.querySelector(`[channel-id="${channelId}"]`);
+        getChannelFromElement(element) {
+            App.serverMonitor.getChannel( utils.getChannelIdFromElement( element ) );
         },
 
-        parseSSEEvent(evt) {
-            const sseId = evt.detail.elt.getAttribute('sse-swap');
-            if (!sseId) return {};
-            
-            const divider = sseId.lastIndexOf("-");
-            return {
-                channelId: sseId.substring(0, divider),
-                logType: sseId.substring(divider + 1)
-            };
+        getBoxFromChannelId( channelId ) {
+            return document.querySelector(`[channel-id="${channelId}"]`);
         },
 
         arraysEqual(arr1, arr2) {
             return arr1.length === arr2.length && arr1.every((val, i) => val === arr2[i]);
         },
         
-        formatTime (dateArg){
-            const date = dateArg || new Date(); // or your Date object
+        /*function formatLogTime(ms){
+            const date = !isNaN(ms) ? new Date(ms) : new Date();
+            const hours = ('0' + date.getHours()).slice(-2);
+            const minutes = ('0' + date.getMinutes()).slice(-2);
+            const seconds = ('0' + date.getSeconds()).slice(-2);
+            const milliseconds = ('00' + date.getMilliseconds()).slice(-3);
+            const formatted = hours + ':' + minutes + ':' + seconds + '.' + milliseconds;
+            return formatted;
+        }*/
 
-            const hours = String(date.getHours()).padStart(2, '0');
-            const minutes = String(date.getMinutes()).padStart(2, '0');
-            const seconds = String(date.getSeconds()).padStart(2, '0');
-            const timeString = `${hours}:${minutes}:${seconds}`;
+        formatElapsedTime(ms) {
+            const seconds = Math.floor(ms / 1000);
+            const minutes = Math.floor(seconds / 60);
+            const hours   = Math.floor(minutes / 60);
+            const days    = Math.floor(hours / 24);
+
+            const h = hours % 24;
+            const m = minutes % 60;
+            const s = seconds % 60;
+
+            if (days > 0) return `${days}d ${h}h`;
+            if (hours > 0) return `${h}h ${m}m`;
+            if (minutes > 0) return `${m}m ${s}s`;
+            return `${s}s`;
+        },
+
+        formatTime(dateObj, useMs) {
+            const d = dateObj || new Date();
+            const hours = String(d.getHours()).padStart(2, '0');
+            const minutes = String(d.getMinutes()).padStart(2, '0');
+            const seconds = String(d.getSeconds()).padStart(2, '0');
+            let timeString = `${hours}:${minutes}:${seconds}`;
+            if (useMs) {
+                const milliseconds = String(d.getMilliseconds()).padStart(3, '0');
+                timeString += `.${milliseconds}`;
+            }
+
             return timeString;
         },
-
-        formatDuration(ms) {
-            const sec = Math.floor(ms / 1000);
-            const units = [
-                { label: "day", value: 86400 },
-                { label: "hour", value: 3600 },
-                { label: "min", value: 60 },
-                { label: "second", value: 1 },
-            ];
-
-            let remaining = sec;
-            const amounts = [];
-
-            for (const unit of units) {
-                const amount = Math.floor(remaining / unit.value);
-                remaining %= unit.value;
-                if (amount > 0 || (unit.label === "second" && amounts.length === 0)) {
-                    amounts.push({ label: unit.label, amount,});
-                }
-            }
-
-            const parts = [];
-            for (const item of amounts) {
-                if (item.label !== "min") {
-                    parts.push(`${item.amount} ${item.label}${item.amount !== 1 ? "s" : ""}`);
-                }
-                if (parts.length >= 2) {
-                break;
-                }
-            }
-
-            const minutes = amounts.find(u => u.label === "min");
-            if (minutes) {
-                parts.push(`${minutes.amount} ${minutes.label}${minutes.amount !== 1 ? "s" : ""}`);
-            }
-            return parts.join(" ");
-        }
-
-
-    };
-
-    // API functions
-    const api = {
+        // "20:59:53" or "20:59:53.423"
+        // General request method for loading data
         async request(url, options = {}) {
-            try {
-                const response = await fetch(url, options);
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                return response.json();
-            } catch (error) {
-                console.error(`API request failed: ${url}`, error);
-                throw error;
-            }
-        },
+			try {
+				const response = await fetch(url, options);
+				if (!response.ok) {
+					const text = await response.text();
+					throw new Error(`HTTP ${response.status}: ${text}`);
+				}
+				const contentType = response.headers.get('content-type');
+				if (contentType && contentType.includes('application/json')) {
+					return response.json();
+				} else {
+					// If it's not JSON, return the text response
+					return response.text();
+				}
+			} catch (error) {
+				console.error(`API request failed: ${url}`, error);
+				throw error;
+			}
+		},    
+        throttle(func, delay) {
+            let isThrottled = false;
+            let lastArgs, lastContext;
 
-        getChannels() {
-            return this.request('/api/channels/');
-        },
-
-        getChannel(username) {
-            return this.request(`/api/channel/${encodeURIComponent(username)}`);
-        },
-
-        pauseChannel(channelId) {
-            return this.request(`/pause_channel/${channelId}`, { method: 'POST' });
-        },
-
-        resumeChannel(channelId) {
-            return this.request(`/resume_channel/${channelId}`, { method: 'POST' });
-        },
-
-        stopChannel(channelId) {
-            return this.request(`/stop_channel/${channelId}`, { method: 'POST' });
-        },
-
-        updateThumbnail(channelId) {
-            return this.request(`/update_thumbnail/${channelId}`, { method: 'POST' });
-        },
-
-        updateChannel(channelId) {
-            return this.request(`/update_channel/${channelId}`, { method: 'POST' });
-        }
-    };
-
-    // Channel management
-    const channelManager = {
-        getChannel(channelId) {
-            if (!state.channels[channelId]) {
-                state.channels[channelId] = {
-                    id: channelId,
-                    lastUpdateTs: Date.now(),
-                    thumbAnticache: state.sessionChannels[channelId]?.thumbAnticache || 0,
-                    status: null,
-                    dataTransferTracking: [],
-                    avgThroughputBps: 0
-                };
-            }
-            return state.channels[channelId];
-        },
-
-        updateStatus(channel) {
-            this.updateVisuals(channel);
-            utils.log(`Channel status updated: ${channel.id} [${channel.status}]`);
-            
-        },
-
-        updateVisuals(channel) {
-            const channelBox = utils.getChannelBox(channel.id);
-            if (!channelBox) return;
-
-            // Update status display
-            const statusEl = channelBox.querySelector(".ch-status");
-            if (statusEl) statusEl.textContent = channel.status;
-
-            // Update CSS classes
-            config.statusOrder.forEach(status => {
-                channelBox.classList.remove(`ch-status-${status.toLowerCase()}`);
-            });
-            channelBox.classList.add(`ch-status-${channel.status.toLowerCase()}`);
-
-            // Trigger updates
-            listSorter.scheduleSort();
-            this.updateCounters();
-        },
-
-        updateCounters() {
-            const statusCounts = Object.values(state.channels).reduce((acc, ch) => {
-                acc[ch.status] = (acc[ch.status] || 0) + 1;
-                return acc;
-            }, {});
-            console.log( statusCounts )
-            document.querySelectorAll(".mini-badges > div").forEach(el => {
-                const match = el.className.match(/mini-badge-(\w+)/i);
-                if (!match) return;
-
-                const status = match[1].toUpperCase();
-                const count = statusCounts[status] || 0;
-
-                if (count > 0) {
-                    el.textContent = count;
-                    el.style.display = "";
-                    gsap?.fromTo(el, { opacity: 0.4 }, { opacity: 0.7, duration: 1 });
-                } else {
-                    el.style.display = "none";
-                }
-            });
-
-            // this.updateThroughput();  // <---------------------------------------------------------
-        },
-
-        updateThroughput() {
-            const activeCount = Object.values(state.channels).filter(ch => ch.status === "RECORDING").length;    
-            const recInfoEl = document.querySelector(".recording-info");
-            if( !activeCount ) {
-                if(recInfoEl) recInfoEl.textContent = "Waiting for channels to go online"
-                return;
-            } 
-
-            const totalBytesPerSec = Object.values(state.channels)
-                .filter(ch => ch.status === "RECORDING" && ch.avgThroughputBps > 0)
-                .reduce((sum, ch) => sum + ch.avgThroughputBps, 0);
-            
-            const mbps = totalBytesPerSec / (1024 * 1024);
-           
-            utils.log( state.channels, "mbps :" + mbps)
- 
-            recInfoEl.textContent = `Recording ${activeCount}channel${activeCount > 1 ? "s" : ""} ${mbps.toFixed(2)} MB/s`;                       
-        },
-
-        updateTime() {
-            var el = document.querySelector("#time-information");
-            const activeCount = Object.values(state.channels).filter(ch => ch.status === "RECORDING").length;    
-            const recInfoEl = document.querySelector(".recording-info");
-            if( !activeCount ) {
-                if(recInfoEl) recInfoEl.textContent = "Waiting for channels to go online"
-                return;
-            } 
-
-            const totalBytesPerSec = Object.values(state.channels)
-                .filter(ch => ch.status === "RECORDING" && ch.avgThroughputBps > 0)
-                .reduce((sum, ch) => sum + ch.avgThroughputBps, 0);
-            
-            const mbps = totalBytesPerSec / (1024 * 1024);
-           
-            utils.log( state.channels, "mbps :" + mbps)
- 
-            recInfoEl.textContent = `Recording ${activeCount}channel${activeCount > 1 ? "s" : ""} ${mbps.toFixed(2)} MB/s`;                       
-        },
-
-        updateActivityIndicator() {
-            var el = document.querySelector(".activity-indicator");
-            el.classList.add("blink")
-            setTimeout(function(){el.classList.remove("blink")},2000)
-        },        
-
-        trackFilesize ( bytes, channel) {
-            if ( !bytes ) return;
-            
-            const tracking = channel.dataTransferTracking || (channel.dataTransferTracking = []);
-            const lastEntry = tracking[tracking.length - 1];
-
-            // Detect reset
-            if ( channel.status !== "RECORDING" || ( lastEntry && bytes < lastEntry[0] ) ) {
-                // This might happen if the source resets or rolls over
-                tracking.length = 0;
-            }
-
-            // Maintain max 10 entries
-            if (tracking.length >= 10) tracking.shift();
-            tracking.push([bytes, Date.now()]);
-
-            // Calculate throughput
-            if (tracking.length > 2) {
-                const first = tracking[0];
-                const last = tracking[tracking.length - 1];
-                const deltaBytes = last[0] - first[0];
-                const deltaSec = (last[1] - first[1]) / 1000;
-
-                if (deltaSec > 0) {
-                    channel.avgThroughputBps = deltaBytes / deltaSec;
-                }
-            }
-        }
-    };
-
-    // List sorting functionality
-    const listSorter = {
-        timeout : null,
-        scheduleSort() {
-            var autoSortDisabledInUI = document.getElementById("auto-sort-toggle")?.checked === false;
-            if ( state.isAnimating || autoSortDisabledInUI ) return;
-            clearTimeout(this.timeout);
-            
-            const now = Date.now();
-            if (now - state.lastUserMoved < 1000) {
-                setTimeout(() => this.scheduleSort(), 500);
-                return;
-            }
-
-            // Create small delay regardless
-            this.timeout = setTimeout(function(){ listSorter.performSort();},500);
-        },
-
-        performSort() {
-            const container = document.querySelector('.ts-wrap');
-            if (!container) return;
-
-            const boxes = Array.from(container.querySelectorAll('.channel-box'));
-            
-            boxes.sort((a, b) => {
-                const priorityA = this.getSortPriority(a);
-                const priorityB = this.getSortPriority(b);
-                if (priorityA !== priorityB) return priorityA - priorityB;
-                return utils.getChannelId(a).localeCompare(utils.getChannelId(b));
-            });
-
-            const newOrder = boxes.map(box => utils.getChannelId(box));
-            if (utils.arraysEqual(newOrder, state.lastOrder)) return;
-
-            this.animateSort(boxes, container);
-            state.lastOrder = newOrder;
-        },
-
-        getSortPriority(element) {
-            const badgeEl = element.querySelector('.ts-badge');
-            const badgeText = badgeEl?.textContent.trim() || '';
-            return config.statusOrder.indexOf(badgeText);
-        },
-
-        animateSort(boxes, container) {
-            if (!window.gsap) {
-                boxes.forEach(box => container.appendChild(box));
-                return;
-            }
-
-            const positions = new Map();
-            boxes.forEach(box => positions.set(box, box.getBoundingClientRect()));
-            boxes.forEach(box => container.appendChild(box));
-
-            state.isAnimating = true;
-            let completed = 0;
-
-            boxes.forEach(box => {
-                const oldPos = positions.get(box);
-                const newPos = box.getBoundingClientRect();
-                const from = {
-                    x: oldPos.left - newPos.left,
-                    y: oldPos.top - newPos.top
-                };
-
-                gsap.fromTo(box, from, {
-                    x: 0, y: 0,
-                    duration: config.animationTime / 1000,
-                    ease: "elastic.inOut(1.5,1.5)",
-                    delay: (Math.random()*.6),
-                    onComplete: () => {
-                        completed++;
-                        if (completed === boxes.length) {
-                            state.isAnimating = false;
-                            setTimeout(() => this.scheduleSort(), 500);
-                        }
-                    }
-                });
-            });
-        }
-    };
-
-    // Event handlers
-    const eventHandlers = {
-        setupSSE() {
-            document.body.addEventListener('htmx:sseBeforeMessage', (e) => {
-                state.lastSSEEvent = Date.now(); // <--not sure wehre i was going with this
-                channelManager.updateActivityIndicator();
-                const sseInfo = utils.parseSSEEvent(e);
-                if (!sseInfo.channelId) return;
-
-                const channel = channelManager.getChannel(sseInfo.channelId);
-                channel.lastUpdateTs = Date.now();
-                
-
-                if (sseInfo.logType === "info") {
-                    const ch_sseData = this.extractData(e)
-                    if( ch_sseData.status !== channel.status ) {
-                        channel.status = ch_sseData.status;
-                        channelManager.updateStatus(channel);
-                    }
-                    channelManager.trackFilesize( ch_sseData.filesize , channel );
-                } 
-                //else if (sseInfo.logType === "log" && channel.status === "RECORDING") {
-                   // we don't really need anything from here
-                //}
-                
-                if ( e.detail.elt.closest(".js-is-collapsed") || ( sseInfo.logType === "log" && !e.detail.elt.closest(".ts-box").querySelector("[type=checkbox]").checked ) ) {
-                        e.preventDefault();
-                        state.debugCounters.skipped++;
-                } else {
-                    state.debugCounters.passed++;
-                }
-                this.updateDebugCounters();
-            });
-
-            document.body.addEventListener('htmx:afterSwap', (e) => {
-                this.scrollLogTextarea(e.detail.elt);
-            });
-        },
-
-        extractData(e) {
-            const match = e.detail.data.match(/class="json-chinfo"[^>]*>([^<]*)<\/span>/);
-            const jsonString = match ? match[1].trim() : null;
-            return JSON.parse( jsonString )
-        },
-
-        setupClickHandlers() {
-            const checkbox = document.getElementById("auto-sort-toggle");
-            checkbox?.addEventListener("change", (e) => {
-                if(e.target.checked) listSorter.scheduleSort();
-            }); 
-
-            document.body.addEventListener('click', (e) => {
-                const channelId = utils.getChannelId(e.target);
-                
-                if (e.target.closest('.btn-openweb')) {
-                    const siteUrl = document.querySelector(".content > .is-start-labeled > .label")?.textContent;
-                    window.open(`${siteUrl}${channelId}/`, '_blank');
-                    utils.cancelEvent(e);
-                    
-                } else if (e.target.closest('.btn-edit')) {
-                    dialogs.editChannel.open(channelId);
-                    utils.cancelEvent(e);
-                    
-                } else if (e.target.closest('.btn-delete')) {
-                    dialogs.confirmDelete.open(channelId);
-                    utils.cancelEvent(e);
-                    
-                } else if (e.target.closest('.ch-status')) {
-                    const isPaused = e.target.closest('.ch-status-paused');
-                    (isPaused ? api.resumeChannel : api.pauseChannel).apply(api,[channelId]);
-                    utils.cancelEvent(e);
-                    
-                } else if (e.target.closest('.channel-thumbnail')) {
-                    const channel = channelManager.getChannel(channelId);
-                    if (['RECORDING', 'QUEUED'].includes(channel.status)) {
-                        this.updateThumbnail(channelId);
-                    } else {
-                        this.toggleCollapse(e);
-                    }
-                    utils.cancelEvent(e);
-                    
-                } else if (e.target.closest('.channel-header')) {
-                    this.toggleCollapse(e);
-                    utils.cancelEvent(e);
+            const wrapper = (...args) => {
+                if (isThrottled) {
+                    lastArgs = args;
+                    lastContext = this;
+                    return;
                 }
 
-            });
-        },
+                func.apply(this, args);
+                isThrottled = true;
 
-        setupInputFilters() {
-            const usernameInput = document.getElementById('username-input');
-            if (!usernameInput) return;
-
-            usernameInput.addEventListener('input', (e) => {
-                let value = e.target.value.trim();
-
-                // Extract username from Chaturbate URL
-                if (value.includes('chaturbate.')) {
-                    const match = value.match(/^(?:https?:\/\/)?(?:[a-zA-Z0-9-]+\.)?chaturbate\.[a-z.]+\/([^\/\s?#]+)/i);
-                    if (match) value = match[1];
-                }
-
-                // Clean CSV-style input
-                e.target.value = value
-                    .split(',')
-                    .map(v => v.trim())
-                    .filter(v => v.length > 0)
-                    .join(',');
-            });
-        },
-
-        toggleCollapse(e) {
-            const channelBox = e.target.closest('[channel-id]');
-            if (!channelBox) return;
-
-            const channelId = channelBox.getAttribute("channel-id");
-            const textarea = channelBox.querySelector("textarea");
-            
-            if (channelBox.classList.contains("js-is-collapsed")) { 
-                channelBox.classList.remove("js-is-collapsed");
-                api.updateChannel(channelId);   
-            } else {
-                channelBox.classList.add("js-is-collapsed");
-            }
-            
-            if (textarea) {
-                textarea.style.overflowY = "hidden";
-                setTimeout(() => { textarea.style.overflowY = "auto"; }, 600);
-            }
-
-            
-        },
-
-        async updateThumbnail(channelId) {
-            const channelBox = utils.getChannelBox(channelId);
-            if (!channelBox) return;
-
-            channelBox.classList.add("loading-thumbnail");
-            
-            try {
-                await api.updateThumbnail(channelId);
-                this.makeThumbnailUncached(channelId);
-            } catch (error) {
-                console.error("Failed to update thumbnail:", channelId, error);
-            } finally {
                 setTimeout(() => {
-                    channelBox.classList.remove("loading-thumbnail");
-                }, 500);
-            }
-        },
+                isThrottled = false;
+                if (lastArgs) {
+                    wrapper.apply(lastContext, lastArgs);
+                    lastArgs = lastContext = null;
+                }
+                }, delay);
+            };
 
-        makeThumbnailUncached(channelId, anticacheInt) {
-            const channel = channelManager.getChannel(channelId);
-            const channelBox = utils.getChannelBox(channelId);
-            const thumbnail = channelBox?.querySelector(".channel-thumbnail");
-            
-            if (thumbnail) {
-                const anticache = anticacheInt || ++channel.thumbAnticache;
-                thumbnail.style.backgroundImage = 
-                    `url(./channel-images/${channelId}.jpg?${anticache}), url(static/default_user.png)`;
-            }
-        },
-
-        scrollLogTextarea(element) {
-            if ( element.closest(".js-is-collapsed") ) return;
-            
-            const textarea = element.tagName === "TEXTAREA" ? element : element.querySelector("textarea");
-            const checkbox = element.closest(".channel-box")?.querySelector("[type=checkbox]");
-            
-            if (textarea && checkbox?.checked) {
-                setTimeout(() => { textarea.scrollTop = textarea.scrollHeight; }, 1);
-            }
-        },
-
-        updateDebugCounters() {
-            if (!config.debug) return;
-            
-            const skippedEl = document.getElementById("sse-skipped");
-            const passedEl = document.getElementById("sse-passed");
-            
-            if (skippedEl) skippedEl.textContent = state.debugCounters.skipped;
-            if (passedEl) skippedEl.textContent = state.debugCounters.passed;
-        }
+            return wrapper;
+        }   
     };
-
-    // Dialog management
+//--API.js ============================================================================
+	const api = {
+		getChannels: () => {
+			return utils.request('/api/channels/');
+		},
+		getChannel: (username) => {
+			return utils.request(`/api/channel/${encodeURIComponent(username)}`);
+		},
+		pauseChannel: (channelId) => {
+			return utils.request(`/pause_channel/${channelId}`, { method: 'POST' });
+		},
+		resumeChannel: (channelId) => {
+			return utils.request(`/resume_channel/${channelId}`, { method: 'POST' });
+		},
+		stopChannel: (channelId) => {
+			return utils.request(`/stop_channel/${channelId}`, { method: 'POST' });
+		},
+		updateThumbnail: (channelId) => {
+			return utils.request(`/update_thumbnail/${channelId}`, { method: 'POST' });
+		},
+		updateChannel: (channelId) => {
+			return utils.request(`/update_channel/${channelId}`, { method: 'POST' });
+		}
+	};
+//--Dialogs.js ============================================================================
     const dialogs = {
+        // Dialog Edit Channel
         editChannel: {
             open(username) {
                 api.getChannel(username).then(data => {
@@ -565,20 +219,23 @@
 
                     // Set edit mode
                     document.getElementById('edit-flag').value = "true";
-                    
+
                     // Fill form
                     const fields = {
-                        'username-input': data.Username || "",
+                        '#username-input': data.Username || "",
                         'select[name="resolution"]': data.Resolution || 1080,
                         'input[name="priority"]': data.Priority || 0,
                         'input[name="max_filesize"]': data.MaxFilesizeInt || 0,
                         'input[name="max_duration"]': data.MaxDurationInt || 0,
                         'input[name="pattern"]': data.Pattern || ""
                     };
-
+                    
                     Object.entries(fields).forEach(([selector, value]) => {
-                        const el = document.querySelector(selector);
-                        if (el) el.value = value;
+                        const el = dialog.querySelector(selector);
+                        if (el) {
+                            el.value = value;
+                            //console.log(selector, el.value )
+                        } 
                     });
 
                     // Configure dialog
@@ -590,7 +247,7 @@
 
                     const header = dialog.querySelector('.ts-header');
                     const submitBtn = dialog.querySelector('button[type="submit"]');
-                    
+
                     if (header) header.textContent = "Edit Channel";
                     if (submitBtn) submitBtn.textContent = "Save Changes";
 
@@ -602,12 +259,12 @@
             onClose() {
                 console.log("closed")
                 document.getElementById('edit-flag').value = "false";
-                
+
                 const dialog = document.getElementById('create-dialog');
                 const header = dialog?.querySelector('.ts-header');
                 const submitBtn = dialog?.querySelector('button[type="submit"]');
                 const usernameInput = document.getElementById('username-input');
-                
+
                 if (header) header.textContent = "Add Channel";
                 if (submitBtn) submitBtn.textContent = "Add Channel";
                 if (usernameInput) {
@@ -616,7 +273,7 @@
                 }
             }
         },
-
+        // Dialog Delete Channel Confirmation
         confirmDelete: {
             open(channelId) {
                 const modal = document.getElementById('delete-confirm');
@@ -625,7 +282,7 @@
                 modal.querySelector('.channel-name').textContent = channelId;
                 const thumbnail = modal.querySelector('.channel-thumbnail');
                 if (thumbnail) {
-                    thumbnail.style.backgroundImage = 
+                    thumbnail.style.backgroundImage =
                         `url('./channel-images/${channelId}.jpg'), url('static/default_user.png')`;
                 }
 
@@ -644,84 +301,602 @@
                 modal.showModal();
             }
         }
-    };
+    }
+//--ServerMonitor.js ============================================================================
+    function ServerMonitor(){
+        // The purpose of this function is to track and extract info from SSE Events, 
+        // prevent DOM swaps and track throughput.
+        
+        var lastEventTs = 0;
+        
+        const channels = {}; 
+        const sessionChannels = JSON.parse( sessionStorage.getItem("channels") || "{}" ); // To keep track of thumbnailcache
+           
+        // ServerMonitor - Dispatch events related to channeltracking
+        const events = new EventTarget();
+        function dispatchEvent( eventName, channel, type, originalEvent ){
+            events.dispatchEvent(new CustomEvent(eventName, { detail: { channel, type, originalEvent } })); 
+        }
 
-    // Initialization
-    async function initialize() {
-        try {
-            utils.log("Initializing Chaturbate DVR Script");
+        function healthCheck(){
+            if( (Date.now()-lastEventTs) > ( state.appInitData.Config.Interval*60000 ) ) {
+                events.dispatchEvent(new CustomEvent("onAppUnreachable"), { detail: { } } );
+            }
+        }
+        // ServerMonitor - trackFilesize
+        function trackFilesize ( bytes, channel ) {
+            const tracking = channel.dataTransferTracking || (channel.dataTransferTracking = [] );
+            const lastEntry = tracking[tracking.length - 1];
+
+            //  TrackFilesize - filesize will be lower if new videosegment starts.
+            if ( channel.status !== "RECORDING" || ( lastEntry && bytes < lastEntry[0] ) ) {
+                tracking.length = 0;
+            }else if( tracking.length == 0 ) {
+                tracking.push([bytes , Date.now()-5000]); // avoid spike at first "log"
+            }
+            //  TrackFilesize - Max 10 entries of samples
+            if (tracking.length >= 10) tracking.shift(); 
+            tracking.push([bytes, Date.now()]);
             
-            try {
-                // In a docker the system time can be something else, which affects the filenaming
-                // This is to show the system time in status bar
-                var data = JSON.parse( document.body.querySelector('#app-data-json')?.textContent.trim() )
-                utils.log("init data: " , data)
-                state.appInitDate = new Date( data.AppInitTs )
-                state.webInitDate = new Date( data.WebInitTs )
-                state.appInitTs = data.AppInitTs
-                state.webInitTs = data.WebInitTs 
-                state.timeOffset = state.webInitTs-Date.now();             
-            }catch(err){
-                utils.log("loading data from .app-data-json failed", err)
+            //  TrackFilesize - Calculate throughput
+            if (tracking.length > 2) {
+                const first = tracking[0];
+                const last = tracking[tracking.length - 1];
+                const deltaBytes = last[0] - first[0];
+                const deltaSec = (last[1] - first[1]) / 1000;
+                if (deltaSec > 0) {
+                    channel.avgThroughputBps = deltaBytes / deltaSec;
+                }
+            }
+        }
+        
+        function parseInitialChannelsData(){
+            let els = document.querySelectorAll(".ts-box .ts-badge"); // optimally 'ch-status-badge'
+            els.forEach(chBadgeEl => {
+                const channel = App.serverMonitor.getChannel( utils.getChannelIdFromElement( chBadgeEl ) )
+                channel.status = chBadgeEl.textContent.trim(); // this is the only time we get status from static html
+            });     
+        } 
+
+        // ServerMonitor - getChannelObject (or create)
+        function getChannel(channelId) {
+            if (!channels[channelId]) {
+                channels[channelId] = {
+                    id: channelId,
+                    lastUpdateTs: Date.now(),
+                    thumbAnticache: sessionChannels[channelId]?.thumbAnticache || 0,
+                    status: null,
+                    statusBefore: null,
+                    log: [],
+                    dataTransferTracking: [],
+                    avgThroughputBps: 0
+                };
+            }
+            return channels[channelId];
+        }
+       
+        // ServerMonitor - parseSSEvent for name and log type.
+        function extractJsonDataFromEvent(e) {
+            try { 
+                // e.detail.data -> contains the html sent by go ( but as string )
+                const jsonString = e.detail.data.match(/class="[^"]*\bjson-channel-data\b[^"]*"[^>]*>([^<]*)<\s*\/\s*[^>]+>/)[1];
+                return JSON.parse( jsonString )
+            } catch(err) {
+                return null;
+            }
+        }
+        
+        // ServerMonitor - parseSSEvent for name and log type.
+        function getSSEInfo(e) {
+            const sseId = e.detail.elt.getAttribute('sse-swap'); 
+            const divider = sseId.lastIndexOf("-");
+            return {
+                channelId: sseId.substring(0, divider),
+                logType: sseId.substring(divider + 1)
+            };
+        } 
+
+        // ServerMonitor - Core functionality
+        function handleBeforeSwap(e){
+            const sseInfo = getSSEInfo(e); // returns { channelId, logType }
+            const channel = getChannel( sseInfo.channelId ); // get or create channel data object
+            const now = Date.now();
+            channel.lastUpdateTs = now;
+            lastEventTs = now;
+
+            if ( sseInfo.logType === "info" ) {
+                channel.lastInfoData = e.detail.data;
+                const ch_sseData = extractJsonDataFromEvent(e);
+                
+                if(ch_sseData) {          
+                    channel.infoData = ch_sseData; // Store
+                    // Tracking Status Change
+                    if( ch_sseData.status !== channel.status ) {
+                        channel.statusBefore = channel.status;
+                        channel.status = ch_sseData.status;
+                        // Send a updated channel object
+                        dispatchEvent( 'onChannelStatusChange', channel, sseInfo.logType, e );
+                    }
+                    // Tracking Throughput
+                    if( (channel.status === "RECORDING") && (ch_sseData.filesizeBytes !== channel.filesizeBytes) ) {
+                        trackFilesize( ch_sseData.filesizeBytes, channel );
+                        channel.filesizeBytes = ch_sseData.filesizeBytes; 
+                    }
+                }else {
+                   utils.log("no json data", channel.id, channel)
+                }
+                dispatchEvent('onInfoUpdate', channel, sseInfo.logType, e );              
+            }else if(sseInfo.logType === "log") {
+                channel.lastLogData = e.detail.data;
+                channel.lastLogLine = e.detail.data.split("\n").pop();
+                dispatchEvent('onLogUpdate', channel, sseInfo.logType, e );
+            }else {
+                utils.log("Unexpected event type", channel.id, channel, e)
             }
 
-            var clock = (function(){
-                var clockEl = document.body.querySelector('#system-clock');
-                var updatimeEl = document.body.querySelector('#uptime-info');
-                setInterval(function(){
-                    clockEl.textContent = utils.formatTime( new Date(Date.now() + state.timeOffset ) );
-                    updatimeEl.textContent = "Uptime: " + utils.formatDuration( Date.now() - state.appInitTs ) ;
-                    uptime-info
-                },500)
-            })()
+            dispatchEvent('onChannelUpdate', channel, sseInfo.logType, e);
+            // Cancel DOM swaps for collapsed items
+            /*if ( e.detail.elt.closest(".js-is-collapsed") ) {
 
+            }*/
+            e.preventDefault();
+        }
 
+        function handleAfterSwap(e){
+            const sseInfo = getSSEInfo(e);
+            dispatchEvent('onDOMSwapped', getChannel( sseInfo.channelId ), sseInfo.logType, e );
+        }
+                
+        // ServerMonitor - Interface
+        this.getChannels = function(){return channels;}
+        this.getChannel = getChannel
+        this.addEventListener = events.addEventListener.bind(events);
+        this.removeEventListener = events.removeEventListener.bind(events);
+
+        this.countActiveChannels = function(){
+            return Object.values( channels ).filter(ch => ch.status === "RECORDING").length;
+        }
+
+        this.getAverageThroughputMbps = function(){
+            const totalBytesPerSec = Object.values(channels)
+                .filter(ch => ch.status === "RECORDING" && ch.avgThroughputBps > 0)
+                .reduce((sum, ch) => sum + ch.avgThroughputBps, 0);
+            return totalBytesPerSec / (1024 * 1024);
+        }
+        
+        // ServerMonitor INIT 
+
+        this.init = function() {
+            utils.log(":: ServerMonitor Init" ) 
+            utils.log(":: sessionChannels", sessionChannels )
+            parseInitialChannelsData()
+               
+            document.body.addEventListener('htmx:sseBeforeMessage', handleBeforeSwap);
+            document.body.addEventListener('htmx:afterSwap', handleAfterSwap);            
             
-            // Load channel data
-            const channelsData = await api.getChannels();
-            channelsData.forEach(chInfo => {
-                const channel = channelManager.getChannel(chInfo.Username);
-                channel.status = chInfo.IsPaused ? "PAUSED" :
-                                chInfo.IsBlocked ? "BLOCKED" :
-                                chInfo.IsDownPrioritized ? "QUEUED" :
-                                chInfo.IsOnline ? "RECORDING" : "OFFLINE";
-            });
-
-            // Setup event handlers
-            eventHandlers.setupSSE();
-            eventHandlers.setupClickHandlers();
-            eventHandlers.setupInputFilters();
-
-            // Setup mouse tracking for sort delays
-            document.body.addEventListener('mousemove', () => {
-                state.lastUserMoved = Date.now();
-            });
-
-            // Save state on unload
             window.addEventListener("beforeunload", () => {
-                sessionStorage.setItem("channels", JSON.stringify(state.channels));
+                sessionStorage.setItem("channels", JSON.stringify( App.serverMonitor.getChannels() ));
+                state.fatalAppError = false; 
+                sessionStorage.setItem("state", JSON.stringify( App.state ));
             });
 
-            // Initial updates
-            setTimeout(() => {
-                channelManager.updateCounters();
-                Object.values(state.channels).forEach(ch => {
-                    if (ch.thumbAnticache) {
-                        eventHandlers.makeThumbnailUncached(ch.id, ch.thumbAnticache);
+            setInterval( healthCheck, state.appInitData.Config.Interval*60000 );
+            utils.log(":: ServerMonitor Ready" )     
+        };          
+    }
+//--UI.js ============================================================================
+    function UI(){
+
+        const ThroughputUpdater = (() => {
+            let intervalId = null;
+            var recInfoEl;
+            var indicator;
+            
+            function update() {
+                const activeCount = App.serverMonitor.countActiveChannels();
+
+                if (activeCount > 0) {
+                    indicator.classList.add("recording")
+                    const mbps = App.serverMonitor.getAverageThroughputMbps();
+                    recInfoEl.textContent = `Recording ${activeCount} channel${activeCount > 1 ? "s" : ""} ${mbps.toFixed(2)} MB/s`;
+                } else {
+                    indicator.classList.remove("recording")
+                    recInfoEl.textContent = "Waiting for channels to go online";
+                }
+            }
+
+            return {
+                start(delayMs = 1000) {
+                    recInfoEl = document.querySelector(".recording-info");
+                    indicator = document.querySelector(".activity-indicator")
+                    if (intervalId !== null) return; // already running
+                    intervalId = setInterval(update, delayMs);
+                },
+                stop() {
+                    if (intervalId !== null) {
+                        clearInterval(intervalId);
+                        intervalId = null;
+                    }
+                }
+            };
+        })();
+        // UI - updateDebugCounters
+        function updateDebugCounters() {
+            if (!config.debug) return;
+
+            const skippedEl = document.getElementById("sse-skipped");
+            const passedEl = document.getElementById("sse-passed");
+
+            if (skippedEl) skippedEl.textContent = state.debugCounters.skipped;
+            if (passedEl) skippedEl.textContent = state.debugCounters.passed;
+        }
+        // UI - Setup Input filters
+        function setupInputFilter() {
+            document.getElementById('username-input').addEventListener('input', (e) => {
+                let value = e.target.value.trim();
+                // Extract username from Chaturbate URL
+                if (value.includes('chaturbate.')) {
+                    const match = value.match(/^(?:https?:\/\/)?(?:[a-zA-Z0-9-]+\.)?chaturbate\.[a-z.]+\/([^\/\s?#]+)/i);
+                    if (match) value = match[1];
+                }
+                // Clean CSV-style input ( no duplicates, no empty items )
+                e.target.value = value.split(',').map(v => v.trim()).filter(v => v.length > 0).join(',');
+            });
+        }
+        // UI - Setup Click Handlers
+        function setupClickHandlers() {
+            document.getElementById("auto-sort-toggle").addEventListener("change", (e) => {
+                if( isAutoSortEnabled() ) App.channelView.update();
+            });
+        }
+        // UI - Start Server Time Clock
+        function startClock(){
+            var clockEl = document.body.querySelector('#system-clock');
+            var uptimeEl = document.body.querySelector('#uptime-info');
+            var clockInterval = setInterval(function(){
+                if(clockEl) clockEl.textContent = utils.formatTime( new Date(Date.now() + state.timeOffset ) );
+                if(uptimeEl) {
+                    if( state.fatalAppError ) {
+                        clearInterval(clockInterval);
+                        uptimeEl.textContent = uptimeEl.textContent + " - ERROR";
+                    } else {
+                        uptimeEl.textContent = "Uptime: " + utils.formatElapsedTime( Date.now() - state.appInitData.AppInitUnixMs ) ;
+                    }
+                } 
+            },500)
+        }
+
+        function isAutoSortEnabled(){
+            return Boolean(document.getElementById("auto-sort-toggle").checked);
+        }
+        // UI - Init
+        this.init = function(){
+            utils.log(':: Init UI');
+            setupClickHandlers();
+            setupInputFilter();
+            startClock();
+            ThroughputUpdater.start();
+        }
+        
+        this.update = function(){
+            
+        }     
+        
+        // UI - End
+    }
+//--channelview.js ============================================================================
+    function ChannelView(){
+        // UI - List sort
+        var listSorter = new ListSorter();
+        const _self = this
+        async function updateThumbnail(channelId) {
+            const channelBox = utils.getBoxFromChannelId(channelId);
+            
+            if (!channelBox) return utils.log("Could not find thumbnail");
+            channelBox.classList.add("loading-thumbnail");
+            try {
+                await api.updateThumbnail(channelId);
+                makeThumbnailUncached(channelId);
+            } catch (error) {
+                console.error("Failed to update thumbnail:", channelId, error);
+            } finally {
+                setTimeout(() => {
+                    channelBox.classList.remove("loading-thumbnail");
+                }, 500);
+            }
+        }
+
+        function makeThumbnailUncached(channelId, anticacheInt ) {
+            const channel = App.serverMonitor.getChannel(channelId);
+            const channelBox = utils.getBoxFromChannelId(channel.id);
+            channelBox.querySelector(".channel-thumbnail").style.backgroundImage =
+                `url(./channel-images/${channel.id}.jpg?${( anticacheInt || ++channel.thumbAnticache )}), url(static/default_user.png)`;
+        }
+
+        function updateChannelStatusBadge(channel) {
+            const channelBox = utils.getBoxFromChannelId(channel.id);
+            // Update CSS classes
+            config.statusOrder.forEach(status => { channelBox.classList.remove(`ch-status-${status.toLowerCase()}`); });
+            channelBox.classList.add(`ch-status-${channel.status.toLowerCase()}`);
+            // Update status text
+            channelBox.querySelector(".ch-status").textContent = channel.status;
+        }  
+
+
+        function toggleCollapse(e) {
+            const channelBox = e.target.closest('[channel-id]');
+            if (!channelBox) return;
+            
+            const channelId = channelBox.getAttribute("channel-id");
+            const channel = App.serverMonitor.getChannel(channelId);
+            
+            if (channelBox.classList.contains("js-is-collapsed")) { 
+                channelBox.classList.remove("js-is-collapsed");
+                if( !channel.lastLogData ) {
+                    // js didn't catch any events yet - force info update ( this only happens once - if any )
+                    //api.updateChannel(channelId); // This is not needed
+                    // if channel.lastLogData is empty, we do nothing --- 
+                }else {
+                     _self.updateLog ( channel, true ); 
+                }    
+                const textarea = channelBox.querySelector("textarea");
+                if (textarea) {
+                    textarea.style.overflowY = "hidden";
+                    setTimeout(() => { textarea.style.overflowY = "auto"; }, 600);
+                }                
+            } else {
+                channelBox.classList.add("js-is-collapsed");
+            }
+            
+            // Make sure log textearea is scrolled to bottom on expand
+
+        }
+
+        function setupChannelButtons(){
+            document.body.addEventListener('click', (e) => {
+                const channel = App.serverMonitor.getChannel( utils.getChannelIdFromElement(e.target) );
+                if (e.target.closest('.btn-openweb')) {
+                    window.open(`${state.appInitData.Config.Domain}${channel.id}/`, '_blank');
+                    utils.cancelEvent(e);
+                } else if (e.target.closest('.btn-edit')) {
+                    dialogs.editChannel.open(channel.id);
+                    utils.cancelEvent(e);
+
+                } else if (e.target.closest('.btn-delete')) {
+                    dialogs.confirmDelete.open(channel.id);
+                    utils.cancelEvent(e);
+
+                } else if (e.target.closest('.ch-status')) {
+                    (channel.status === "PAUSED" ?  api.resumeChannel : api.pauseChannel ).apply(api,[channel.id]);
+                    utils.cancelEvent(e);
+                    
+                } else if (e.target.closest('.channel-thumbnail')) {
+                    var isOnline = ['RECORDING', 'QUEUED'].includes(channel.status); // if QUEUED the channel is technically online
+                    isOnline ? updateThumbnail(channel.id) : toggleCollapse(e);
+                    utils.cancelEvent(e);
+
+                } else if (e.target.closest('.channel-header')) {
+                    toggleCollapse(e);
+                    utils.cancelEvent(e);
+                }
+            });
+        }
+        
+        this.updateChannelInfo = function( channel ) {
+            var box = utils.getBoxFromChannelId( channel.id );
+            var data = channel.infoData;
+            // Only update if box is not collapsed
+            if (!box.closest(".js-is-collapsed")) {
+                var fields = box.querySelectorAll('[data-value-id]');
+                fields.forEach(function( field ) {
+                    var key = field.getAttribute('data-value-id');
+                    if ( data.hasOwnProperty( key ) ) {
+                        if(field.textContent !== data[key]) {
+                            field.textContent = data[key];
+                        }
+                    } else {
+                        field.textContent = '-'; // fallback if key doesn't exist
                     }
                 });
-            }, 500);
+            }
+        };
 
-            // Setup periodic updates
-            setInterval(() => channelManager.updateThroughput(), 1000);
+        this.updateLog = function(channel, forceScrollToEnd) {
+            if( !channel.lastLogData ) return;
+            
+            var box = utils.getBoxFromChannelId(channel.id);
+            if ( !box.closest(".js-is-collapsed") && box.querySelector("[type=checkbox]").checked ) {
+                const textarea = box.querySelector("textarea");
+                const isAtBottom = textarea.scrollTop + textarea.clientHeight >= ( textarea.scrollHeight-10 );
+           
+                textarea.textContent = channel.lastLogData;
+                
+                if (isAtBottom || forceScrollToEnd) {
+                    textarea.scrollTop = textarea.scrollHeight; // auto-scroll
+                } 
+            }
+        };      
+        this.updateChannelStatus = function( channel ){
+            updateChannelStatusBadge( channel );
+            listSorter.scheduleSort();
+        }
+        
+        this.updateChannelThumbnail = function(channel){
+            updateThumbnail(channel);
+        }
 
-            utils.log("Initialization complete");
-            utils.log("State", state)
-        } catch (error) {
-            console.error("Failed to initialize:", error);
+        this.update = function(){
+            listSorter.scheduleSort();
+        }
+        
+        // >> Channel View - init
+        this.init = function(){
+            setupChannelButtons();
+            listSorter.init()
+
+            // Check if any thumbnails needs to uncached
+            Object.values( App.serverMonitor.getChannels() ).forEach(ch => {
+                if ( ch.thumbAnticache ) {
+                    utils.log(":: Thumbs Anticache for " + ch.channelId, ch)
+                    makeThumbnailUncached(ch.id, ch.thumbAnticache);
+                }
+            });
+        }
+    }
+ //--channelview.listSorter.js ============================================================================
+    function ListSorter(){
+        //var timeout = null;
+        var isAnimating = null;
+        let userMouseMoveStoppedMs = 0;
+        var lastOrder = []
+          // scheduleSort  ( ListSorter )
+        function scheduleSort() {
+            if( isAnimating ) return // A new check will be run on animation complete
+            if ( document.getElementById("auto-sort-toggle" )?.checked === false ) return; 
+            
+            if ( ( Date.now() - userMouseMoveStoppedMs ) < 1000 ) { 
+                setTimeout( scheduleSort , 200); 
+                return;
+            }
+            //setTimeout( performSort, 500 ); // Create small delay regardless
+            performSort()
+        }
+        function getSortPriority( element ) {
+            const badgeEl = element.querySelector('.ts-badge');
+            const badgeText = badgeEl?.textContent.trim() || '';
+            return config.statusOrder.indexOf(badgeText);
+        }            
+        // Sort Data ( ListSorter )
+        function performSort() {
+            if (isAnimating) return;
+            const container = document.querySelector(".channel-list .ts-wrap");
+            const boxes = Array.from( container.querySelectorAll('.channel-box') );
+            boxes.sort((a, b) => {
+                const prioA = getSortPriority(a);
+                const prioB = getSortPriority(b);
+                return prioA !== prioB ? ( prioA - prioB ) : utils.getChannelIdFromElement(a).localeCompare(utils.getChannelIdFromElement(b));
+            });
+            const newOrder = boxes.map(box => utils.getChannelIdFromElement(box));
+            
+            // Check if sortorder has changed since last animation
+            if ( !utils.arraysEqual(newOrder, lastOrder)) {;
+                // Changed!
+                lastOrder = newOrder;
+                // Start new animation
+                animateBoxes(boxes, container);
+            }else {
+                // Do nothing
+            }
+        }
+
+        function finishAnimation(){
+            if(!performSort) utils.log("performSort not in scope")
+            setTimeout( function(){
+                isAnimating = false;
+                performSort()    
+            }, 500) ;
+        }
+
+        function getAnimationOvershoot(distance, reference = 240, max = 1.6, min = 0.4) {
+            const factor = distance / reference;
+            return ( max / factor ).toFixed(2);
+        }
+
+        // Sorting Animation ( ListSorter )
+        function animateBoxes(boxes, container) {
+            if (!window.gsap) {
+                boxes.forEach(box => container.appendChild(box));
+                return;
+            }
+
+            if (isAnimating) return;
+            
+            const animationDuration = config.animationTime / 1000;
+            const positions = new Map();
+
+            boxes.forEach(box => positions.set(box, box.getBoundingClientRect()));
+
+            const movedBoxes = [];
+
+            boxes.forEach((box, i) => {
+                const oldPos = positions.get(box);
+
+                // Temporarily move to correct spot
+                if (container.children[i] !== box) {
+                    container.insertBefore(box, container.children[i]);
+                }
+                const newPos = box.getBoundingClientRect();
+                const distance = Math.abs(oldPos.top - newPos.top);
+
+                if (distance !== 0) {
+                    movedBoxes.push({ box, fromY: oldPos.top - newPos.top, distance });
+                }
+            });
+
+            if (movedBoxes.length === 0) {
+                finishAnimation();
+                return;
+            }
+
+            isAnimating = true;
+            const tl = gsap.timeline({ onComplete: () => { finishAnimation(); } });
+            movedBoxes.forEach(({ box, fromY, distance }, idx) => {
+                tl.add(gsap.fromTo(box,
+                    { y: fromY/*, rotationX: 0*/ },
+                    {
+                        y: 0,
+                        /*rotationX: !box.classList.contains("js-is-collapsed") ? 0: 360, */
+                        duration: animationDuration,
+                        ease: `back.inOut(${getAnimationOvershoot(distance)})`
+                    }), 0.02 * idx);
+            });
+        }
+
+        // List sort - Interface
+        this.scheduleSort = scheduleSort;
+        // >> List sort - Init
+        this.init = function(){
+            document.body.addEventListener('mousemove', () => {
+                userMouseMoveStoppedMs = Date.now();
+            });
         }
     }
 
+
+    // App.utils.js
+    App.logger = (() => {
+
+        function getStatusIcon(channel){
+            var recStoppedIcon = channel.statusBefore == "RECORDING" ? "⛔" : "📍";
+            switch (channel.status) {
+                case "RECORDING": return "📍"+"💚";
+                case "PAUSED":    return recStoppedIcon + "⏸️";
+                case "BLOCKED":   return recStoppedIcon + "⚠️";
+                case "QUEUED":    return recStoppedIcon + "🕝";
+                case "OFFLINE":   return recStoppedIcon + "✖️";
+                default:          return "";
+            }           
+        }
+
+        function handleStatusChange(monitorEvent) {
+            var channel = monitorEvent.detail.channel; 
+            utils.log("🎺"+getStatusIcon(channel)+" ["+channel.id+"] - "+ channel.statusBefore+" > "+channel.status)
+        }
+
+        return {
+            enable(){
+                App.serverMonitor.addEventListener( 'onChannelStatusChange', handleStatusChange );         
+            },
+            disable(){
+                App.serverMonitor.removeEventListener( 'onChannelStatusChange', handleStatusChange ); 
+            }
+        }
+    })()
+
+//--ChannelLogger.js ============================================================================
+    function ChannelLogger(){
+                
+    }
     // Public API
     window.cbdvr = {
         // Core functionality
@@ -731,55 +906,38 @@
         pauseChannel: (id) => api.pauseChannel(id),
         resumeChannel: (id) => api.resumeChannel(id),
         updateThumbnail: (id) => eventHandlers.updateThumbnail(id),
-        channelManager: channelManager,
+        serverMonitor: App.serverMonitor,
         // Utility functions
         enableDebug() {
             config.debug = !config.debug;
             document.body.classList.toggle("debug");
         },
-        
+
         blurForDemo() {
             document.body.classList.toggle("blur-for-demo");
         },
-        
+
         getChannelsCSV() {
             api.getChannels().then(data => {
                 const names = data.map(ch => ch.Username).join(',');
                 console.log(names);
             });
         },
-        
+
         insertUserAgent() {
             const textarea = document.querySelector('#settings-dialog textarea[name="user_agent"]');
             if (textarea) textarea.value = navigator.userAgent;
         },
-        
         // Debug utilities
-        getTrackedChannels: () => state.channels,
+        getTrackedChannels: function(){ return App.serverMonitor.getChannels(); },
         debug: config.debug
     };
 
     // Start the application
-    document.addEventListener("DOMContentLoaded", initialize);
-    setTimeout(balloon,20)
-
-
+    document.addEventListener("DOMContentLoaded", App.init );
 })();
 
 
-function balloon(){
-    if(balloon.animating) return
-    var el = document.body.querySelector('.lil-bandit-balloon');
-    if( !balloon.ran ) {
-        el.addEventListener("mouseover", balloon)
-    }
-    
-    balloon.animating = true;
-    const tl = gsap.timeline();
-    el.classList.add("animating")
-    tl.to(el, {y: -140,x: 350, scale:2,duration: balloon.ran ? 7:0, opacity: balloon.ran ? 1:0, rotation:55, ease: "power1.in"})
-        .to(el, {y: 80, x: -150, opacity:0, duration: 0,  rotation:-55, onComplete:function(){ el.classList.remove("animating")}})
-        .to(el, {y: 0,x: 0,duration: 12,opacity:.8,scale:1, rotation:0, ease: "elastic.out(.5,.5)",onComplete:function(){balloon.animating = false;}}); 
-    balloon.ran = true    
-}
+
+
 

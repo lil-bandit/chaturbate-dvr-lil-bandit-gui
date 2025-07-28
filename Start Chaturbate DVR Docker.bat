@@ -20,4 +20,6 @@ docker run -d ^
   -interval 1 ^
   -max-connections 10 ^
   -min-filesize 10 ^
+  -max-duration 60 ^
+  -pattern "videos/{{.Username}}/{{.Username}}_{{.Year}}-{{.Month}}-{{.Day}}_{{.Hour}}-{{.Minute}}-{{.Second}}{{if .Sequence}}_{{.Sequence}}{{end}}" ^
   -output-dir ./complete

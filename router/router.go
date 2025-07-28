@@ -64,6 +64,7 @@ func SetupViews(r *gin.Engine) {
 	r.POST("/update_thumbnail/:username", UpdateThumbnail)
 	r.GET("/api/channel/:username", GetChannelJSON)
 	r.GET("/api/channels", GetAllChannelsJSON)
+	r.POST("/save_channels", SaveChannelsConfig)
 }
 
 // LoadHTMLFromEmbedFS loads specific HTML templates from an embedded filesystem and registers them with Gin.

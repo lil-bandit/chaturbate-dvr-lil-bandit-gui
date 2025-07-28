@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/teacat/chaturbate-dvr/channel"
 	"github.com/teacat/chaturbate-dvr/entity"
 	"github.com/teacat/chaturbate-dvr/manager"
 	"github.com/teacat/chaturbate-dvr/server"
@@ -24,9 +25,9 @@ func sortChannels(channels []*entity.ChannelInfo) {
 	sort.Slice(channels, func(i, j int) bool {
 		rank := func(chInfo *entity.ChannelInfo) int {
 			switch {
-			case !chInfo.IsPaused && !chInfo.IsDownPrioritized && chInfo.IsOnline:
+			case !chInfo.IsPaused && !chInfo.IsQueued && chInfo.IsOnline:
 				return 0 // "ONLINE"
-			case !chInfo.IsPaused && chInfo.IsDownPrioritized:
+			case !chInfo.IsPaused && chInfo.IsQueued:
 				return 1 // "QUEUED"
 			case !chInfo.IsPaused && chInfo.IsBlocked:
 				return 2 // "BLOCKED"
@@ -51,7 +52,7 @@ func Index(c *gin.Context) {
 	channels := server.Manager.ChannelInfo()
 
 	sortChannels(channels)
-	server.Config.WebInitTs = time.Now().UnixMilli()
+	server.Config.WebInitUnixMs = time.Now().UnixMilli()
 	c.HTML(200, "index.html", &IndexData{
 		Config:   server.Config,
 		Channels: channels,
@@ -92,11 +93,13 @@ func CreateChannel(c *gin.Context) {
 			c.String(http.StatusInternalServerError, "Manager type assertion failed")
 			return
 		}
-		ch := mgr.GetChannelRaw(req.Username)
-		if ch == nil {
+
+		thing, ok := mgr.Channels.Load(req.Username)
+		if !ok {
 			c.String(http.StatusNotFound, "Channel not found")
 			return
 		}
+		ch := thing.(*channel.Channel)
 		// Now you can update config fields
 		ch.Config.Framerate = req.Framerate
 		ch.Config.Resolution = req.Resolution
@@ -126,7 +129,7 @@ func CreateChannel(c *gin.Context) {
 			MaxFilesize: req.MaxFilesize,
 			Priority:    req.Priority,
 			CreatedAt:   time.Now().Unix(),
-		}, true, i+1)
+		}, true, i)
 	}
 	c.Redirect(http.StatusFound, "/")
 }
@@ -175,14 +178,21 @@ func UpdateConfig(c *gin.Context) {
 		return
 	}
 
-	//persistSettings := c.Param("persist_settings")
+	respondWithJSON := c.PostForm("json") == "true"
+
+	previousMax := server.Config.MaxConnections
 
 	server.Config.Cookies = req.Cookies
 	server.Config.UserAgent = req.UserAgent
 	server.Config.MaxConnections = req.MaxConnections
 	server.Config.MinFilesize = req.MinFilesize
-	server.Config.PersistSettings = (req.PersistSettingsTmp == "on") // Check string to get boolean
+	server.Config.PersistSettings = (req.PersistSettingsTmp == "on") // We convert to boolean here
 
+	if req.MaxConnections != previousMax {
+		server.Manager.PriorityEnforcer("")
+	}
+
+	// Mangage persistent setting.
 	if server.Config.PersistSettings {
 		if err := server.Manager.SaveServerConfig(); err != nil {
 			_ = fmt.Errorf("save server config: %w", err)
@@ -192,23 +202,23 @@ func UpdateConfig(c *gin.Context) {
 			_ = fmt.Errorf("delete server config: %w", err)
 		}
 	}
+	if respondWithJSON {
+		c.JSON(http.StatusOK, "{sucess:\"true\"}")
+	} else {
+		c.Redirect(http.StatusFound, "/")
+	}
 
-	c.Redirect(http.StatusFound, "/")
 }
 
 func UpdateThumbnail(c *gin.Context) {
-
 	username := c.Param("username")
-
 	mgr, ok := server.Manager.(*manager.Manager)
 	if !ok {
 		c.String(http.StatusInternalServerError, "Manager type assertion failed")
 		return
 	}
-
 	_ = mgr.DownloadChannelImage(username, true)
-
-	chInfo := server.Manager.GetChannelByUsername(username)
+	chInfo := server.Manager.GetChannelInfoByUsername(username)
 	if chInfo == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Channel not found"})
 		return
@@ -223,24 +233,23 @@ func UpdateChannel(c *gin.Context) {
 		c.String(http.StatusInternalServerError, "Manager type assertion failed")
 		return
 	}
-	ch := mgr.GetChannelRaw(username)
-	chInfo := mgr.GetChannelByUsername(username)
+	ch := mgr.GetChannelByUsername(username)
+	chInfo := mgr.GetChannelInfoByUsername(username)
 	if ch == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Channel not found"})
 		return
 	} else {
-
 		mgr.Publish(entity.EventLog, ch.ExportInfo())
+		ch.Update() /*<------*/
 		fmt.Printf("Updating channel: %s\n", username)
 	}
 	c.JSON(http.StatusOK, chInfo)
-
 }
 
 // GetChannelJSON responds with the JSON representation of a channel's information.
 func GetChannelJSON(c *gin.Context) {
 	username := c.Param("username")
-	chInfo := server.Manager.GetChannelByUsername(username)
+	chInfo := server.Manager.GetChannelInfoByUsername(username)
 	if chInfo == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Channel not found"})
 		return
@@ -252,4 +261,16 @@ func GetChannelJSON(c *gin.Context) {
 func GetAllChannelsJSON(c *gin.Context) {
 	channels := server.Manager.ChannelInfo()
 	c.JSON(http.StatusOK, channels)
+}
+
+func SaveChannelsConfig(c *gin.Context) {
+	mgr, ok := server.Manager.(*manager.Manager)
+	if !ok {
+		c.String(http.StatusInternalServerError, "Manager type assertion failed")
+		return
+	}
+	if err := mgr.SaveConfig(); err != nil {
+		c.String(http.StatusInternalServerError, "Failed to save config: %v", err)
+		return
+	}
 }

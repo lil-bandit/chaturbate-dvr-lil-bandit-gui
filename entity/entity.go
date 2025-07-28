@@ -24,6 +24,8 @@ type ChannelConfig struct {
 	MaxFilesize int    `json:"max_filesize"`
 	Priority    int    `json:"priority"`
 	CreatedAt   int64  `json:"created_at"`
+	RecordedAt  int64  `json:"recorded_at"`
+	//PlaylistURL string `json:"playlist_url"`
 	//IsBlocked bool  `json:"is_blocked"` <-- It's not a "construction" or persistent property, IsBlocked is moslty for info and template
 }
 
@@ -37,20 +39,22 @@ func (c *ChannelConfig) Sanitize() {
 type ChannelInfo struct {
 	IsOnline          bool
 	IsPaused          bool
-	IsDownPrioritized bool
+	IsQueued          bool
 	IsBlocked         bool
 	Username          string
 	Duration          string
 	Filesize          string
-	//DurationInt       int
-	FilesizeBytes  string
-	Filename       string
-	StreamedAt     string
-	MaxDuration    string
-	MaxFilesize    string
-	MaxFilesizeInt int
-	MaxDurationInt int
+	FilesizeBytes     int
+	Filename          string
+	StreamedAt        string
+	LowresPlaylistURL string
+	MaxDuration       string
+	MaxFilesize       string
+	MaxFilesizeInt    int
+	MaxDurationInt    int
+	StreamedAtUnix    int64
 	//MinFilesize       string
+	//DurationInt     int
 	CreatedAt    int64
 	Logs         []string
 	GlobalConfig *Config // for nested template to access $.Config
@@ -83,8 +87,8 @@ type AppConfig struct {
 // Config holds the configuration for the application.
 type Config struct {
 	Version         string
-	AppInitTs          int64
-	WebInitTs       int64
+	AppInitUnixMs   int64
+	WebInitUnixMs   int64
 	Username        string
 	AdminUsername   string
 	AdminPassword   string

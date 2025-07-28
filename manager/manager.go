@@ -56,7 +56,7 @@ func (m *Manager) SaveConfig() error {
 		return fmt.Errorf("mkdir all conf: %w", err)
 	}
 	if err := os.WriteFile("./conf/channels.json", b, 0777); err != nil {
-		return fmt.Errorf("write file: %w", err)
+		return fmt.Errorf("write channels file: %w", err)
 	}
 	return nil
 }
@@ -101,7 +101,8 @@ func (m *Manager) CreateChannel(conf *entity.ChannelConfig, shouldSave bool, seq
 	}
 	m.Channels.Store(conf.Username, ch)
 	m.DownloadChannelImage(conf.Username)
-	go ch.Resume(seq)
+
+	ch.Resume(seq)
 
 	if shouldSave {
 		if err := m.SaveConfig(); err != nil {
@@ -146,7 +147,7 @@ func (m *Manager) ResumeChannel(username string) error {
 	if !ok {
 		return nil
 	}
-	thing.(*channel.Channel).Resume(0)
+	go thing.(*channel.Channel).Resume(0)
 
 	if err := m.SaveConfig(); err != nil {
 		return fmt.Errorf("save config: %w", err)
@@ -223,11 +224,13 @@ func (m *Manager) SaveServerConfig() error {
 		return fmt.Errorf("mkdir all conf: %w", err)
 	}
 	if err := os.WriteFile("./conf/persisted-settings.json", b, 0777); err != nil {
-		return fmt.Errorf("write file: %w", err)
+		return fmt.Errorf("write serverconfig file: %w", err)
 	}
+
 	return nil
 }
 
+// For making settings non-persistent
 func (m *Manager) DeleteServerConfig() error {
 	err := os.Remove("./conf/persisted-settings.json")
 	if err != nil && !os.IsNotExist(err) {
@@ -236,117 +239,83 @@ func (m *Manager) DeleteServerConfig() error {
 	return nil
 }
 
-func (m *Manager) PreemptForPriority(newPriority int) (canStart bool) {
+func (m *Manager) PriorityEnforcer(username string) bool {
 	max := server.Config.MaxConnections
 	if max < 1 {
-		return true // unlimited, always allow
+		return true // Unlimited — always allow
 	}
 
-	var (
-		count          int
-		lowestPrio     = int(^uint(0) >> 1) // max int
-		highestPrio    = 0                  // max int
-		lowestChannel  *channel.Channel
-		highestChannel *channel.Channel
-	)
+	var worthy []*channel.Channel
+	var currentChannel *channel.Channel
+	var includedUsernames = make(map[string]bool)
 
-	// Count online channels and find the lowest priority channel that we can potentially stop/preempt
-	m.Channels.Range(func(key, value any) bool {
-		ch := value.(*channel.Channel)
-		if ch.IsOnline {
-			count++
-			if ch.Config.Priority < lowestPrio {
-				lowestPrio = ch.Config.Priority
-				lowestChannel = ch
-			}
-		}
-		return true
-	})
-
-	if count < max {
-		return true // slot available, no need to preempt
-	}
-
-	// Find the highest priority channel amongst queued (IsDownPrioritized == true) channels, that can potentially wait for to start instead
-	m.Channels.Range(func(key, value any) bool {
-		ch := value.(*channel.Channel)
-		if ch.IsDownPrioritized {
-			if ch.Config.Priority > highestPrio {
-				highestPrio = ch.Config.Priority
-				highestChannel = ch
-			}
-		}
-		return true
-	})
-
-	// If the new channel's priority is higher than the lowest online channel's priority, and either there is no higher priority channel waiting or the new channel's priority is higher than the highest waiting channel's priority, we can down-prioritize the lowest online channel
-	if newPriority > lowestPrio && lowestChannel != nil && (highestChannel == nil || newPriority > highestPrio) {
-		lowestChannel.DownPrioritize()
-		return true
-	}
-
-	return false
-}
-
-/*
-func (m *Manager) PreemptForPriority(currentChannel *channel.Channel) bool {
-	max := server.Config.MaxConnections
-	if max < 1 {
-		return true // unlimited, always allow
-	}
-
-	var all []*channel.Channel
-
-	// Collect all channels into a slice
+	// 1. Collect all eligible channels (online or queued and not paused)
 	m.Channels.Range(func(_, value any) bool {
 		ch := value.(*channel.Channel)
-		all = append(all, ch)
+		if (ch.IsOnline || ch.IsQueued) && !ch.Config.IsPaused {
+			if !includedUsernames[ch.Config.Username] {
+				worthy = append(worthy, ch)
+				includedUsernames[ch.Config.Username] = true
+			}
+		}
 		return true
 	})
 
-	// Sort by: priority (desc), then name (asc)
-	sort.Slice(all, func(i, j int) bool {
-		if all[i].Config.Priority != all[j].Config.Priority {
-			return all[i].Config.Priority > all[j].Config.Priority
+	// 2. If a contender is provided and not already included, add it
+	if username != "" {
+		if !includedUsernames[username] {
+			raw, ok := m.Channels.Load(username)
+			if !ok {
+				fmt.Printf("Error getting channel of: %v\n", username)
+				return false
+			}
+			currentChannel = raw.(*channel.Channel)
+			worthy = append(worthy, currentChannel)
+			includedUsernames[username] = true
 		}
-		return all[i].Name < all[j].Name
+	}
+
+	// 3. Sort by priority (desc) and username (asc)
+	sort.SliceStable(worthy, func(i, j int) bool {
+		if worthy[i].Config.Priority != worthy[j].Config.Priority {
+			return worthy[i].Config.Priority > worthy[j].Config.Priority
+		}
+		return worthy[i].Config.Username < worthy[j].Config.Username
 	})
 
-	// Count currently online channels
-	var onlineCount int
-	for _, ch := range all {
-		if ch.IsOnline {
-			onlineCount++
-		}
-	}
+	// 4. Enforce priority rules
+	allowedToStart := false
+	startSeq := 0
+	onlineCount := 0
 
-	// If there's room, allow start
-	if onlineCount < max {
-		return true
-	}
-
-	// Select the top N channels that deserve to be online
-	deserved := all[:max]
-
-	// Check if the current channel is among the top N
-	for _, ch := range deserved {
-		if ch == currentChannel {
-			// Preempt a lower-priority online channel (if any)
-			for _, ch := range all[max:] {
-				if ch.IsOnline {
-					ch.DownPrioritize()
-					break
+	for i, ch := range worthy {
+		if i < max {
+			if !ch.IsOnline {
+				if username != "" && ch.Config.Username == username {
+					allowedToStart = true
+				} else if ch.IsQueued && !ch.IsBlocked && !ch.IsResetting {
+					startSeq++
+					go ch.BumpQueue(startSeq)
+				}
+			} else {
+				if username != "" && ch.Config.Username == username {
+					allowedToStart = true
 				}
 			}
-			return true
+			onlineCount++
+		} else {
+			if ch.IsOnline {
+				fmt.Printf("Preempting channel: %v\n", ch.Config.Username)
+				startSeq++
+				ch.Queue(startSeq)
+			}
 		}
 	}
 
-	return false
+	fmt.Printf("PriorityEnforcer channel: [%v] allowed to start: %t\n", username, allowedToStart)
+	return allowedToStart
 }
 
-*/
-/* Not used */
 func (m *Manager) UpdateAllChannels() {
 	m.Channels.Range(func(key, value any) bool {
 		ch := value.(*channel.Channel)
@@ -355,22 +324,9 @@ func (m *Manager) UpdateAllChannels() {
 		}
 		return false
 	})
-
 }
 
-/* Not used */
-func (m *Manager) QueueDownPrioritizedChannels(username string) {
-	m.Channels.Range(func(key, value any) bool {
-		ch := value.(*channel.Channel)
-		if ch.IsOnline && ch.IsDownPrioritized {
-			ch.DownPrioritize()
-		}
-		return false
-	})
-
-}
-
-func (m *Manager) GetChannelByUsername(username string) *entity.ChannelInfo {
+func (m *Manager) GetChannelInfoByUsername(username string) *entity.ChannelInfo {
 	thing, ok := m.Channels.Load(username)
 	if !ok {
 		return nil
@@ -379,7 +335,7 @@ func (m *Manager) GetChannelByUsername(username string) *entity.ChannelInfo {
 	return ch.ExportInfo() // assuming ExportInfo returns *entity.ChannelInfo
 }
 
-func (m *Manager) GetChannelRaw(username string) *channel.Channel {
+func (m *Manager) GetChannelByUsername(username string) *channel.Channel {
 	thing, ok := m.Channels.Load(username)
 	if !ok {
 		return nil
