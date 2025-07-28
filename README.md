@@ -76,7 +76,8 @@ docker run -d ^
   -interval 1 ^
   -max-connections 10 ^
   -min-filesize 10 ^
-  -output-dir ./complete
+  -min-duration 10 ^
+  -output-dir ./complete ^
   -pattern "videos/{{.Username}}/{{.Username}}_{{.Year}}-{{.Month}}-{{.Day}}_{{.Hour}}-{{.Minute}}-{{.Second}}{{if .Sequence}}_{{.Sequence}}{{end}}"
 </pre>
 ⚠️<b>NOTE:</b> Make sure the folderpaths are pointing to desired directories on your system.
