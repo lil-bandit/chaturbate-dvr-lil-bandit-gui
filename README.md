@@ -18,10 +18,15 @@ The things that has been added or changed.
 - Misc. UI changes and style tweaks
 
 - Added commandline options
-  -output-dir <mb> - MOved completed files to a separate directory
+  -output-dir <mb> - Move completed files to a separate directory
+  
   -config <file.json>
+  
   -max-connections <number>
+  
   -min-filesize <mb> - You can set a minimum filesize, anything below it will get deleted
+  
+  
 
 - API additions
   - //localhost:8080/api/channel/\<username\> <-- gets all info and status of a channel
