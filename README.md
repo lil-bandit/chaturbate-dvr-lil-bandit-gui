@@ -18,14 +18,12 @@ The things that has been added or changed.
 - Misc. UI changes and style tweaks
 
 - Added commandline options
-  -output-dir <mb> - Move completed files to a separate directory
-  
-  -config <file.json>
-  
-  -max-connections <number>
-  
-  -min-filesize <mb> - You can set a minimum filesize, anything below it will get deleted
-  
+<pre>
+  -output-dir <mb> ( Move completed files to a separate directory)
+  -config <file.json> ( Define a config file )
+  -max-connections <number> ( Set maximum simultaneous recordings. )
+  -min-filesize <mb> ( Set a minimum filesize, anything below it will get deleted )
+  </pre>
   
 
 - API additions
