@@ -32,10 +32,8 @@ The things that has been added or changed.
 
 <br>
 
-<b>Note regarding Maximum Connections limit:</b> 
-~~1. If you use the GUI to set a limit that is lower than current amount of active downloads,
-   then the active downloads will <i>reamain</i> active. You can pause / resume the ones you want to <i>queue</i>.~~  this SHOULD work now.. i think :D 
-2. When "replacing" active downloads with higher priority ones, it sometimes takes one "cycle" to reflect the changes ( 1 minute, default ) 
+<b>Maximum Connections</b> 
+ 1. It sometimes takes one "cycle" to reflect the changes ( 1 minute, default ) 
 
 
 
