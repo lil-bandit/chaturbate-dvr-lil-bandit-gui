@@ -25,7 +25,6 @@ func New(c *cli.Context) (*entity.Config, error) {
 		MaxConnections:  c.Int("max-connections"),
 		PersistSettings: c.Bool("persist-settings"),
 		OutputDir:       c.String("output-dir"),
-		Priority:        c.Int("priority"),
 		Port:            c.String("port"),
 		Interval:        c.Int("interval"),
 		Cookies:         c.String("cookies"),

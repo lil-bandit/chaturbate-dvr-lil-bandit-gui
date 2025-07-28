@@ -154,7 +154,6 @@ func PickPlaylist(masterPlaylist *m3u8.MasterPlaylist, baseURL string, resolutio
 		}
 		framerateVal := 30
 
-		fmt.Println("Variant Name:", v.Name)
 		if strings.Contains(v.Name, "FPS:60.0") {
 			framerateVal = 60
 		}
@@ -162,12 +161,6 @@ func PickPlaylist(masterPlaylist *m3u8.MasterPlaylist, baseURL string, resolutio
 			resolutions[width] = &Resolution{Framerate: map[int]string{}, Width: width}
 		}
 		resolutions[width].Framerate[framerateVal] = v.URI
-	}
-	jsonData, err := json.MarshalIndent(resolutions, "", "  ")
-	if err != nil {
-		fmt.Println("Error marshaling resolutions:", err)
-	} else {
-		fmt.Println(string(jsonData))
 	}
 	// Find exact match for requested resolution
 	variant, exists := resolutions[resolution]

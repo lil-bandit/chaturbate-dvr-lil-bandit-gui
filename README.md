@@ -3,24 +3,25 @@ This is a fork of excellent work by TeaCat+
 <br>Read general how to's here:
 <br>https://github.com/teacat/chaturbate-dvr/tree/master/chaturbate
 
-Changes
+
+The things that has been added or changed.
 =============================
-- More compact list view (Click to expand/collapse)
-- Added thumbnail support ( Put your own JPGs in <config_dir>/channel-images/<channel_name>.jpg <--  )
-- List is automatically sorted by name and grouped by <i>status</i>
-- Added Maximum Connections option
-- Added Channel Priority option ( if Maximum Connections is set )
-- Added Edit button for channels
-- Fixed "Auto-Update & Scroll Logs" ( Item will still update, but only the log output will be disabled )
+- Lower memory consumption in browser keeping the app smooth and reponsive. 
+- Autosorted compact list view (Click to expand/collapse)
+- Edit channel options in GUI
+- Persisting settings ( Use the tick box in the server settings dialog )
+- Thumbnail support ( Put your own in <config_dir>/channel-images/<channel_name>.jpg )
+- Maximum Connections and priority mechanism ( default 0, is off ) 
 - Input takes whole CB URL and will filter the ID automatically.
-- Insert current browsers User-Agent. Small time-saver; if you are using the same browser as for the webgui, user-agent will be the same.
-- Misc. UI changes
-- You can set a minimum filesize, anything below it will get deleted (-min-filesize <MB>)  - added 2025-06-23
-- You can now define a directory for completed files (-output-dir <directory name>) - added 2025-06-23 ( With help from misterkoko ) 
-- You can now use a preset config (-config <file.json>) - added 2025-06-23 ( With help from misterkoko ) 
-- Use persisted settings ( Use the tick box in the server settings dialog ) - added 2025-06-23
-- Refresh Thumbnail (Not working in Docker) ( Click on the thumbnail of active channel to get new thumbnail - warning: Images in the browser can be cached, so press CTRL+SHIFT+R to refresh browser+cache )  - added 2025-06-23
-- Minimizing DOM updates by cancelling LOG updates when a listitem is collapsed  - added 2025-06-23
+- "Insert current browsers User-Agent"-button. A small time-saver; if you are using the same browser as for the webgui, user-agent will be the same.
+- You can now use a preset config (-config <file.json>) - added 2025-06-23 ( Thanks @misterkoko ) 
+- Misc. UI changes and style tweaks
+
+- Added commandline options
+  -output-dir <mb> - MOved completed files to a separate directory
+  -config <file.json>
+  -max-connections <number>
+  -min-filesize <mb> - You can set a minimum filesize, anything below it will get deleted
 
 - API additions
   - //localhost:8080/api/channel/\<username\> <-- gets all info and status of a channel
@@ -62,19 +63,20 @@ docker rmi lilbandit/chaturbate-dvr
 :: Download latest image
 docker pull lilbandit/chaturbate-dvr
 
-:: Create and run the container with timezone set
+:: Create and run the container
 docker run -d ^
   --name chaturbate-dvr-lb ^
   -p 8080:8080 ^
   -v C:\temp\dvr_videos:/usr/src/app/videos ^
+  -v C:\temp\dvr_videos_complete:/usr/src/app/complete ^
   -v C:\temp\dvr_config:/usr/src/app/conf ^
-  -e TZ=Europe/Copenhagen ^
   lilbandit/chaturbate-dvr ^
   -domain "https://chaturbate.com/" ^
   -interval 1 ^
   -max-connections 10 ^
   -min-filesize 10 ^
   -output-dir ./complete
+  -pattern "videos/{{.Username}}/{{.Username}}_{{.Year}}-{{.Month}}-{{.Day}}_{{.Hour}}-{{.Minute}}-{{.Second}}{{if .Sequence}}_{{.Sequence}}{{end}}"
 </pre>
 ⚠️<b>NOTE:</b> Make sure the folderpaths are pointing to desired directories on your system.
 

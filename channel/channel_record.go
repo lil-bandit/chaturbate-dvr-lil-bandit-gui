@@ -36,7 +36,7 @@ func (ch *Channel) Monitor() {
 			return ch.RecordStream(ctx, client)
 		}
 		onRetry := func(_ uint, err error) {
-			fmt.Printf("RETRY (%s) ERROR: %s \n", ch.Config.Username, err)
+			//fmt.Printf("RETRY (%s) ERROR: %s \n", ch.Config.Username, err)
 			ch.IsOnline = false    // important - If we are in a retry, then we're not recording.
 			ch.IsQueued = false    // resetting ch.IsQueued ( true means: online but not allowed to start )
 			ch.IsBlocked = false   // Re-evaluate isBlocked

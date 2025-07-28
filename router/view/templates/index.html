@@ -388,6 +388,20 @@
     </style>
 </head>
 <body hx-ext="sse">
+        <script type="application/json" id="json-app-data">
+        {
+            "AppInitUnixMs":{{.Config.AppInitUnixMs}},
+            "WebInitUnixMs":{{.Config.WebInitUnixMs}},
+            "Config":{
+                "Interval":{{.Config.Interval}},
+                "Domain":"{{.Config.Domain}}",
+                "PersistSettings":{{.Config.PersistSettings}},
+                "MaxConnections":{{.Config.MaxConnections}},
+                "OutputDir":"{{.Config.OutputDir}}",
+                "Port":"{{.Config.Port}}"
+            }
+        }            
+    </script>
     <div class="ts-app-layout is-fullscreen is-vertical">
         <!-- Fixed Header -->
         <div class="cell" style="padding:40px 0px; border-bottom:0;">
@@ -396,7 +410,7 @@
                     <div class="ts-grid is-bottom-aligned">
                         <div class="column is-fluid" style="line-height: 1em;">
                             <div class="ts-header is-huge is-uppercased is-heavy has-leading-small" style="margin-left: -2px;">Chaturbate DVR</div>
-                            <div class="ts-text is-description is-bold">VERSION {{ .Config.Version }} / lil-bandit v0.07.5 <div class="lil-bandit-balloon" style="display:inline-block;font-size:120%">🎈</div></div>
+                            <div class="ts-text is-description is-bold">VERSION {{ .Config.Version }} / lil-bandit v0.08 <div class="lil-bandit-balloon" style="display:inline-block;font-size:120%">🎈</div></div>
                         </div>
                         <div class="column" style="display:none">
                             <div id="dev-menu">
@@ -849,21 +863,8 @@
             </div>
             
         </div>
-        
+
         </div>
-        <script type="application/json" id="json-app-data">
-            {
-                "AppInitUnixMs":{{.Config.AppInitUnixMs}},
-                "WebInitUnixMs":{{.Config.WebInitUnixMs}},
-                "Config":{
-                    "Interval":{{.Config.Interval}},
-                    "Domain":"{{.Config.Domain}}",
-                    "PersistSettings":{{.Config.PersistSettings}},
-                    "MaxConnections":{{.Config.MaxConnections}},
-                    "OutputDir":"{{.Config.OutputDir}}",
-                    "Port":"{{.Config.Port}}"
-                }
-            }            
-        </script>
+
     </body>
 </html>
