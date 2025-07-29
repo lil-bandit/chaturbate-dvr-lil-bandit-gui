@@ -749,7 +749,7 @@
         var isAnimating = null;
         let userMouseMoveStoppedMs = 0;
         var lastOrder = []
-          // scheduleSort  ( ListSorter )
+        // scheduleSort  ( ListSorter )
         function scheduleSort() {
             if( isAnimating ) return // A new check will be run on animation complete
             if ( document.getElementById("auto-sort-toggle" )?.checked === false ) return; 
@@ -758,8 +758,7 @@
                 setTimeout( scheduleSort , 200); 
                 return;
             }
-            //setTimeout( performSort, 500 ); // Create small delay regardless
-            performSort()
+            performSort();
         }
         function getSortPriority( element ) {
             const badgeEl = element.querySelector('.ts-badge');
@@ -790,11 +789,11 @@
         }
 
         function finishAnimation(){
-            if(!performSort) utils.log("performSort not in scope")
+            if(!performSort) utils.log("performSort not in scope");
             setTimeout( function(){
                 isAnimating = false;
                 performSort()    
-            }, 500) ;
+            }, 500);
         }
 
         function getAnimationOvershoot(distance, reference = 240, max = 1.6, min = 0.4) {
@@ -810,26 +809,33 @@
             }
 
             if (isAnimating) return;
-            
+
             const animationDuration = config.animationTime / 1000;
             const positions = new Map();
 
+            // Capture initial positions before DOM mutations
             boxes.forEach(box => positions.set(box, box.getBoundingClientRect()));
 
-            const movedBoxes = [];
-
+            // Move boxes to new order
             boxes.forEach((box, i) => {
-                const oldPos = positions.get(box);
-
-                // Temporarily move to correct spot
                 if (container.children[i] !== box) {
                     container.insertBefore(box, container.children[i]);
                 }
+            });
+
+            // Measure final positions and prepare movedBoxes
+            const movedBoxes = [];
+            boxes.forEach((box) => {
+                const oldPos = positions.get(box);
                 const newPos = box.getBoundingClientRect();
                 const distance = Math.abs(oldPos.top - newPos.top);
 
                 if (distance !== 0) {
-                    movedBoxes.push({ box, fromY: oldPos.top - newPos.top, distance });
+                    movedBoxes.push({
+                        box,
+                        fromY: oldPos.top - newPos.top,
+                        distance
+                    });
                 }
             });
 
@@ -839,18 +845,21 @@
             }
 
             isAnimating = true;
-            const tl = gsap.timeline({ onComplete: () => { finishAnimation(); } });
+            const tl = gsap.timeline({ onComplete: () => finishAnimation() });
+
             movedBoxes.forEach(({ box, fromY, distance }, idx) => {
-                tl.add(gsap.fromTo(box,
-                    { y: fromY/*, rotationX: 0*/ },
+                tl.add(gsap.fromTo(
+                    box,
+                    { y: fromY },
                     {
                         y: 0,
-                        /*rotationX: !box.classList.contains("js-is-collapsed") ? 0: 360, */
                         duration: animationDuration,
                         ease: `back.inOut(${getAnimationOvershoot(distance)})`
-                    }), 0.02 * idx);
+                    }
+                ), 0.014 * idx);
             });
         }
+
 
         // List sort - Interface
         this.scheduleSort = scheduleSort;
