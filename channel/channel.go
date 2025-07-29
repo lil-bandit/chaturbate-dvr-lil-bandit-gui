@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/teacat/chaturbate-dvr/entity"
@@ -97,7 +98,9 @@ func (ch *Channel) ExportInfo() *entity.ChannelInfo {
 	var filename string
 	if ch.File != nil {
 		filename = ch.File.Name()
+
 	}
+
 	var streamedAt string
 	if ch.StreamedAt != 0 {
 		streamedAt = time.Unix(ch.StreamedAt, 0).Format("2006-01-02 15:04 AM")
@@ -110,13 +113,13 @@ func (ch *Channel) ExportInfo() *entity.ChannelInfo {
 		IsQueued:     ch.IsQueued,
 		IsBlocked:    ch.IsBlocked,
 		Username:     ch.Config.Username,
-		MaxDuration:  internal.FormatDuration(float64(ch.Config.MaxDuration * 60)),      // MaxDuration from config is in minutes
+		MaxDuration:  internal.FormatDuration(float64(ch.Config.MaxDuration * 60)), // MaxDuration from config is in minutes
 		MaxFilesize:  internal.FormatFilesize(ch.Config.MaxFilesize * 1024 * 1024), // MaxFilesize from config is in MB
 		StreamedAt:   streamedAt,
 		CreatedAt:    ch.Config.CreatedAt,
 		Duration:     internal.FormatDuration(ch.Duration),
 		Filesize:     internal.FormatFilesize(ch.Filesize),
-		Filename:     filename,
+		Filename:     strings.TrimPrefix(filename, "videos/"),
 		Logs:         ch.Logs,
 		GlobalConfig: server.Config,
 

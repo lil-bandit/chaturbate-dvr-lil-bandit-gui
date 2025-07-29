@@ -118,10 +118,12 @@ func (ch *Channel) RecordStream(ctx context.Context, client *chaturbate.Client) 
 	playlist, err := stream.GetPlaylist(ctx, ch.Config.Resolution, ch.Config.Framerate)
 
 	if err != nil {
+
+		return fmt.Errorf("get playlist: %w", err)
+	} else {
 		if playlist != nil && playlist.LowestPlaylistURL != "" {
 			ch.LowresPlaylistURL = playlist.LowestPlaylistURL
 		}
-		return fmt.Errorf("get playlist: %w", err)
 	}
 
 	/* Priority management */
