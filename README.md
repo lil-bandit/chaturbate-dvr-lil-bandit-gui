@@ -137,5 +137,8 @@ then go to official cb site and run the following in the console :
 )].join(",")
 </pre>
 
+Note regarding "BLOCKED":
+=============================
 
+My experience is that i can use the same cookie for a very long period of time - also between restarts and even having the app off, even for several days. When i turn it back on, it just picks up with the stored cookie. (using persisted settings). After a restart i often get a lot of "BLOCKED" channels, but!, the blocks dissapear after a minutes, and request gets treated as non-blocked. This behavior seems consistent.
 
