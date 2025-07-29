@@ -758,7 +758,7 @@
                 setTimeout( scheduleSort , 200); 
                 return;
             }
-            performSort();
+            setTimeout( performSort, 50 );
         }
         function getSortPriority( element ) {
             const badgeEl = element.querySelector('.ts-badge');
@@ -782,7 +782,10 @@
                 // Changed!
                 lastOrder = newOrder;
                 // Start new animation
-                prepAnimation(boxes, container);
+                setTimeout(function(){
+                    prepAnimation(boxes, container);
+                },50)
+                
             }else {
                 // Do nothing
             }
@@ -815,42 +818,13 @@
             
             setTimeout(function(){
                 animateBoxes(boxes, container, positions);
-            },0)
-        
+            },50)
         }
-        function animateBoxes(boxes, container, positions) {
-            if (isAnimating) return;
-            // Move boxes to new order
-            boxes.forEach((box, i) => {
-                if (container.children[i] !== box) {
-                    container.insertBefore(box, container.children[i]);
-                }
-            });
-            const animationDuration = config.animationTime / 1000;
-            // Measure final positions and prepare movedBoxes
-            const movedBoxes = [];
-            boxes.forEach((box) => {
-                const oldPos = positions.get(box);
-                const newPos = box.getBoundingClientRect();
-                const distance = Math.abs(oldPos.top - newPos.top);
 
-                if (distance !== 0) {
-                    movedBoxes.push({
-                        box,
-                        fromY: oldPos.top - newPos.top,
-                        distance
-                    });
-                }
-            });
-
-            if (movedBoxes.length === 0) {
-                finishAnimation();
-                return;
-            }
-
+        function animateFinal(movedBoxes){
             isAnimating = true;
             const tl = gsap.timeline({ onComplete: () => finishAnimation() });
-
+            const animationDuration = config.animationTime / 1000;
             movedBoxes.forEach(({ box, fromY, distance }, idx) => {
                 tl.add(gsap.fromTo(
                     box,
@@ -862,6 +836,42 @@
                     }
                 ), 0.014 * idx);
             });
+        }
+        function animateBoxes(boxes, container, positions) {
+            if (isAnimating) return;
+            // Move boxes to new order
+            boxes.forEach((box, i) => {
+                if (container.children[i] !== box) {
+                    container.insertBefore(box, container.children[i]);
+                }
+            });
+            
+            requestAnimationFrame(function(){
+                // Measure final positions and prepare movedBoxes
+                const movedBoxes = [];
+                boxes.forEach((box) => {
+                    const oldPos = positions.get(box);
+                    const newPos = box.getBoundingClientRect();
+                    const distance = Math.abs(oldPos.top - newPos.top);
+
+                    if (distance !== 0) {
+                        movedBoxes.push({
+                            box,
+                            fromY: oldPos.top - newPos.top,
+                            distance
+                        });
+                    }
+                });
+
+                if (movedBoxes.length === 0) {
+                    finishAnimation();
+                    return;
+                }
+                animateFinal(movedBoxes)
+                /*requestAnimationFrame(function(){
+                    
+                })*/
+            })
         }
 
 
