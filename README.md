@@ -76,7 +76,7 @@ docker run -d ^
   -interval 1 ^
   -max-connections 10 ^
   -min-filesize 10 ^
-  -min-duration 10 ^
+  -max-duration 60 ^
   -output-dir ./complete ^
   -pattern "videos/{{.Username}}/{{.Username}}_{{.Year}}-{{.Month}}-{{.Day}}_{{.Hour}}-{{.Minute}}-{{.Second}}{{if .Sequence}}_{{.Sequence}}{{end}}"
 </pre>
@@ -87,6 +87,7 @@ Change:
   
 C:\temp\dvr_videos
 C:\temp\dvr_config
+C:\temp\dvr_videos_complete
 
 ..to folders on your system
 </pre>
