@@ -21,7 +21,7 @@ The things that has been added or changed.
 <pre>
   -output-dir &lt;mb&gt; ( Move completed files to a separate directory)
   -config &lt;file.json&gt; ( Define a config file )
-  -max-connections &lt;number\> ( Set maximum simultaneous recordings. )
+  -max-connections &lt;number&gt; ( Set maximum simultaneous recordings. )
   -min-filesize &lt;mb&gt; ( Set a minimum filesize, anything below it will get deleted )
   </pre>
   
