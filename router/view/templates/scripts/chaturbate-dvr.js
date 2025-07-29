@@ -782,7 +782,7 @@
                 // Changed!
                 lastOrder = newOrder;
                 // Start new animation
-                animateBoxes(boxes, container);
+                prepAnimation(boxes, container);
             }else {
                 // Do nothing
             }
@@ -802,27 +802,31 @@
         }
 
         // Sorting Animation ( ListSorter )
-        function animateBoxes(boxes, container) {
+        function prepAnimation(boxes, container) {
             if (!window.gsap) {
                 boxes.forEach(box => container.appendChild(box));
                 return;
             }
 
             if (isAnimating) return;
-
-            const animationDuration = config.animationTime / 1000;
             const positions = new Map();
-
             // Capture initial positions before DOM mutations
             boxes.forEach(box => positions.set(box, box.getBoundingClientRect()));
-
+            
+            setTimeout(function(){
+                animateBoxes(boxes, container, positions);
+            },0)
+        
+        }
+        function animateBoxes(boxes, container, positions) {
+            if (isAnimating) return;
             // Move boxes to new order
             boxes.forEach((box, i) => {
                 if (container.children[i] !== box) {
                     container.insertBefore(box, container.children[i]);
                 }
             });
-
+            const animationDuration = config.animationTime / 1000;
             // Measure final positions and prepare movedBoxes
             const movedBoxes = [];
             boxes.forEach((box) => {
