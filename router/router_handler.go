@@ -108,7 +108,7 @@ func CreateChannel(c *gin.Context) {
 		ch.Config.MaxFilesize = req.MaxFilesize
 		ch.Config.Priority = req.Priority
 
-		if err := mgr.SaveConfig(); err != nil {
+		if err := server.Manager.SaveConfig(); err != nil {
 			c.String(http.StatusInternalServerError, "Failed to save config: %v", err)
 			return
 		}
@@ -129,7 +129,12 @@ func CreateChannel(c *gin.Context) {
 			MaxFilesize: req.MaxFilesize,
 			Priority:    req.Priority,
 			CreatedAt:   time.Now().Unix(),
-		}, true, i)
+		}, false, i)
+	}
+
+	if err := server.Manager.SaveConfig(); err != nil {
+		c.String(http.StatusInternalServerError, "Failed to save config: %v", err)
+		return
 	}
 	c.Redirect(http.StatusFound, "/")
 }

@@ -5,18 +5,14 @@
 //--App.js ============================================================================
     // Configuration and state
      const config = {
-        debug: new URLSearchParams(window.location.search).has("debug"),
+        debug:  new URLSearchParams(window.location.search).has("debug") || 
+                JSON.parse( sessionStorage.getItem("debug") || false ),
+
         animationTime: 1700,
         statusOrder: ['RECORDING', 'QUEUED', 'BLOCKED', 'OFFLINE', 'PAUSED']
     };
 
    
-    /*const state = JSON.parse( sessionStorage.getItem("state") || 0 ) || {
-        fatalAppError: false,
-        appInitData: {},
-        UiUnixMs: Date.now(),
-        debugCounters: { skipped: 0, passed: 0 }
-    };*/
     const state = {
         fatalAppError: false,
         appInitData: {},
@@ -29,13 +25,17 @@
         async init(){
             App.serverMonitor = new ServerMonitor()
             App.channelView = new ChannelView();
-            App.ui = new UI();            
+            App.ui = new UI();
+            App.state = state;            
             utils.log(":: Initializing Chaturbate DVR Script (Page load)");
             utils.log("===========================================");
 
             
             // Inline JSON data in page, served from go
-            state.appInitData = JSON.parse( document.getElementById('json-app-data')?.textContent.trim() || {} )
+            state.appInitData = JSON.parse( document.getElementById('json-app-data')?.textContent.trim() || null )
+            if( state.appInitData === null ) {
+                return alert("appInitData missing")
+            }
             state.timeOffset = state.appInitData.WebInitUnixMs-Date.now();
             
             // Init stuff
@@ -477,7 +477,7 @@
             window.addEventListener("beforeunload", () => {
                 sessionStorage.setItem("channels", JSON.stringify( App.serverMonitor.getChannels() ));
                 state.fatalAppError = false; 
-                sessionStorage.setItem("state", JSON.stringify( App.state ));
+                if( config.debug == true ) sessionStorage.setItem("debug", "true" );
             });
 
             setInterval( healthCheck, state.appInitData.Config.Interval*60000 );
@@ -486,7 +486,9 @@
     }
 //--UI.js ============================================================================
     function UI(){
+        const state = {
 
+        }
         const ThroughputUpdater = (() => {
             let intervalId = null;
             var recInfoEl;
@@ -527,8 +529,8 @@
             const skippedEl = document.getElementById("sse-skipped");
             const passedEl = document.getElementById("sse-passed");
 
-            if (skippedEl) skippedEl.textContent = state.debugCounters.skipped;
-            if (passedEl) skippedEl.textContent = state.debugCounters.passed;
+            if (skippedEl) skippedEl.textContent = App.state.debugCounters.skipped;
+            if (passedEl) skippedEl.textContent = App.state.debugCounters.passed;
         }
         // UI - Setup Input filters
         function setupInputFilter() {
@@ -554,13 +556,13 @@
             var clockEl = document.body.querySelector('#system-clock');
             var uptimeEl = document.body.querySelector('#uptime-info');
             var clockInterval = setInterval(function(){
-                if(clockEl) clockEl.textContent = utils.formatTime( new Date(Date.now() + state.timeOffset ) );
+                if(clockEl) clockEl.textContent = utils.formatTime( new Date(Date.now() + App.state.timeOffset ) );
                 if(uptimeEl) {
                     if( state.fatalAppError ) {
                         clearInterval(clockInterval);
                         uptimeEl.textContent = uptimeEl.textContent + " - ERROR";
                     } else {
-                        uptimeEl.textContent = "Uptime: " + utils.formatElapsedTime( Date.now() - state.appInitData.AppInitUnixMs ) ;
+                        uptimeEl.textContent = "Uptime: " + utils.formatElapsedTime( Date.now() - App.state.appInitData.AppInitUnixMs ) ;
                     }
                 } 
             },500)
@@ -586,7 +588,7 @@
     }
 //--channelview.js ============================================================================
     function ChannelView(){
-        // UI - List sort
+        // ChannelView - List sort
         var listSorter = new ListSorter();
         const _self = this
         async function updateThumbnail(channelId) {
@@ -692,7 +694,7 @@
                     var key = field.getAttribute('data-value-id');
                     if ( data.hasOwnProperty( key ) ) {
                         if(field.textContent !== data[key]) {
-                            field.textContent = data[key];
+                            field.textContent = data[key] || '-';
                         }
                     } else {
                         field.textContent = '-'; // fallback if key doesn't exist
@@ -758,7 +760,8 @@
                 setTimeout( scheduleSort , 200); 
                 return;
             }
-            setTimeout( performSort, 50 );
+            
+            performSort();
         }
         function getSortPriority( element ) {
             const badgeEl = element.querySelector('.ts-badge');
@@ -767,7 +770,7 @@
         }            
         // Sort Data ( ListSorter )
         function performSort() {
-            if (isAnimating) return;
+            isAnimating = true;
             const container = document.querySelector(".channel-list .ts-wrap");
             const boxes = Array.from( container.querySelectorAll('.channel-box') );
             boxes.sort((a, b) => {
@@ -779,15 +782,14 @@
             
             // Check if sortorder has changed since last animation
             if ( !utils.arraysEqual(newOrder, lastOrder)) {;
-                // Changed!
+                // Changed, so this calls for a sort!
                 lastOrder = newOrder;
-                // Start new animation
                 setTimeout(function(){
                     prepAnimation(boxes, container);
                 },50)
-                
             }else {
-                // Do nothing
+                isAnimating = false;
+                // ...and do nothing - loop ends here
             }
         }
 
@@ -810,19 +812,47 @@
                 boxes.forEach(box => container.appendChild(box));
                 return;
             }
-
-            if (isAnimating) return;
             const positions = new Map();
             // Capture initial positions before DOM mutations
             boxes.forEach(box => positions.set(box, box.getBoundingClientRect()));
-            
             setTimeout(function(){
-                animateBoxes(boxes, container, positions);
+                swapElements(boxes, container, positions);
             },50)
         }
 
-        function animateFinal(movedBoxes){
-            isAnimating = true;
+        function swapElements(boxes, container, positions){
+            // Move boxes to new order
+            boxes.forEach((box, i) => {
+                if (container.children[i] !== box) {
+                    container.insertBefore(box, container.children[i]);
+                }
+            });
+            requestAnimationFrame(function(){
+                animateBoxes(boxes, positions);
+            })
+        }
+
+        function animateBoxes(boxes, positions) {
+            const movedBoxes = [];
+            boxes.forEach((box) => {
+                const oldPos = positions.get(box);
+                const newPos = box.getBoundingClientRect();
+                const distance = Math.abs(oldPos.top - newPos.top);
+
+                if (distance !== 0) {
+                    movedBoxes.push({
+                        box,
+                        fromY: oldPos.top - newPos.top,
+                        distance
+                    });
+                }
+            });
+
+            if (movedBoxes.length === 0) {
+                finishAnimation();
+                return;
+            }
+            
             const tl = gsap.timeline({ onComplete: () => finishAnimation() });
             const animationDuration = config.animationTime / 1000;
             movedBoxes.forEach(({ box, fromY, distance }, idx) => {
@@ -834,44 +864,9 @@
                         duration: animationDuration,
                         ease: `back.inOut(${getAnimationOvershoot(distance)})`
                     }
-                ), 0.014 * idx);
+                ), 0.014 * (idx+1));
             });
-        }
-        function animateBoxes(boxes, container, positions) {
-            if (isAnimating) return;
-            // Move boxes to new order
-            boxes.forEach((box, i) => {
-                if (container.children[i] !== box) {
-                    container.insertBefore(box, container.children[i]);
-                }
-            });
-            
-            requestAnimationFrame(function(){
-                // Measure final positions and prepare movedBoxes
-                const movedBoxes = [];
-                boxes.forEach((box) => {
-                    const oldPos = positions.get(box);
-                    const newPos = box.getBoundingClientRect();
-                    const distance = Math.abs(oldPos.top - newPos.top);
-
-                    if (distance !== 0) {
-                        movedBoxes.push({
-                            box,
-                            fromY: oldPos.top - newPos.top,
-                            distance
-                        });
-                    }
-                });
-
-                if (movedBoxes.length === 0) {
-                    finishAnimation();
-                    return;
-                }
-                animateFinal(movedBoxes)
-                /*requestAnimationFrame(function(){
-                    
-                })*/
-            })
+           
         }
 
 

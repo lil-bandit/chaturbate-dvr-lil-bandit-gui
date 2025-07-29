@@ -102,7 +102,7 @@ func (m *Manager) CreateChannel(conf *entity.ChannelConfig, shouldSave bool, seq
 	m.Channels.Store(conf.Username, ch)
 	m.DownloadChannelImage(conf.Username)
 
-	ch.Resume(seq)
+	go ch.Resume(seq)
 
 	if shouldSave {
 		if err := m.SaveConfig(); err != nil {
